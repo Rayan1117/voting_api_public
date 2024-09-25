@@ -8,15 +8,15 @@ const pins = [1, 2, 3, 5, 6, 7, 8, 4];
 
 app.use(express.json());
 
-dbConfig = {
-    server: 'MZCETDB',
-    database: 'CSE8761',
-    user: 'MZCET',
-    password: 'MZCET@1234',
+const dbConfig = {
+    user: 'Shiranjan',
+    password: 'ichigo@1',
+    server: 'Shiranjan',
+    database: 'express',
     options: {
-        trustServerCertificate: true
-    }
-}
+        trustServerCertificate: true,
+    },
+};
 
 app.post("/config", async (req, res) => {
     try {
@@ -24,9 +24,10 @@ app.post("/config", async (req, res) => {
         const request = new sql.Request;
         const { id } = req.body;
         const { pins } = req.body;
+        const pinsstring = JSON.stringify(pins)
         const query = 'INSERT INTO config (id,pins) VALUES (@id,@pins)';
 
-        await request.input('id', sql.VarChar, id).input('pins', sql.NVarChar, pins).query(query);
+        await request.input('id', sql.VarChar, id).input('pins', sql.NVarChar, pinsstring).query(query);
 
         res.send(pins);
     }
@@ -37,10 +38,23 @@ app.post("/config", async (req, res) => {
     }
 });
 
-app.get("/test", (req, res) => {
-    res.send(pins);
+app.get("/test", async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const request = new sql.Request;
+        const query = 'SELECT TOP 1 * FROM config ORDER BY id DESC';
+        const response = await request.query(query);
+
+        const result = response.recordset[0];
+        const { id, pins } = result;
+
+        res.send(`${id} , ${pins} are successfully retreived`)
+    }
+    catch (err) {
+        res.send(`FAILED TO GET ${err.message}`);
+    }
 });
 
 app.listen(PORT, () => {
-    console.log(`Listening on port ${PORT}`)
+    console.log(`Listening on port ${PORT}`);
 })
