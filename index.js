@@ -48,7 +48,7 @@ app.get("/test", async (req, res) => {
         const result = response.recordset[0];
         const { id, pins } = result;
 
-        res.send(`${id} , ${pins} are successfully retreived`)
+        res.send(`${id} , ${pins}`)
     }
     catch (err) {
         res.send(`FAILED TO GET ${err.message}`);
