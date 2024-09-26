@@ -9,10 +9,10 @@ const pins = [1, 2, 3, 5, 6, 7, 8, 4];
 app.use(express.json());
 
 const dbConfig = {
-    user: 'Shiranjan',
-    password: 'ichigo@1',
-    server: 'Shiranjan',
-    database: 'express',
+    user: 'MZCET',
+    password: 'MZCET@1234',
+    server: '103.207.1.91',
+    database: 'CSE8761',
     options: {
         trustServerCertificate: true,
     },
