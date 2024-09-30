@@ -1,10 +1,12 @@
-const express = require('express')
-const app = express()
-const sql = require('mssql')
+const express = require('express');
+const cors = require('cors');  // Import cors package
+const sql = require('mssql');
+const app = express();
 
 const PORT = process.env.PORT || 5000;
 
-const pins = [1, 2, 3, 5, 6, 7, 8, 4];
+// Enable CORS for all routes and origins
+app.use(cors());  // Use cors as middleware
 
 app.use(express.json());
 
@@ -18,23 +20,19 @@ const dbConfig = {
     },
 };
 
+// Your existing routes
 app.post("/config", async (req, res) => {
     try {
         const pool = await sql.connect(dbConfig);
         const request = new sql.Request;
-        const { id } = req.body;
-        const { pins } = req.body;
-        const pinsstring = JSON.stringify(pins)
+        const { id, pins } = req.body;
+        const pinsstring = JSON.stringify(pins);
         const query = 'INSERT INTO config (id,pins) VALUES (@id,@pins)';
-
         await request.input('id', sql.VarChar, id).input('pins', sql.NVarChar, pinsstring).query(query);
-
         res.send(pins);
-    }
-    catch (err) {
+    } catch (err) {
         console.log(err);
         res.status(500).send("FAILED");
-
     }
 });
 
@@ -44,17 +42,14 @@ app.get("/test", async (req, res) => {
         const request = new sql.Request;
         const query = 'SELECT TOP 1 * FROM config ORDER BY id DESC';
         const response = await request.query(query);
-
         const result = response.recordset[0];
         const { id, pins } = result;
-
-        res.send(`${id} , ${pins}`)
-    }
-    catch (err) {
+        res.send(`${id} , ${pins}`);
+    } catch (err) {
         res.send(`FAILED TO GET ${err.message}`);
     }
 });
 
 app.listen(PORT, () => {
     console.log(`Listening on port ${PORT}`);
-})
+});
