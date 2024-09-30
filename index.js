@@ -2,7 +2,7 @@ const express = require('express')
 const app = express()
 const sql = require('mssql')
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT ||5000;
 
 const pins = [1, 2, 3, 5, 6, 7, 8, 4];
 
