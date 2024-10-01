@@ -25,10 +25,10 @@ app.post("/config", async (req, res) => {
     try {
         const pool = await sql.connect(dbConfig);
         const request = new sql.Request;
-        const { id, pins } = req.body;
+        const { id, candnames, pins } = req.body;
         const pinsstring = JSON.stringify(pins);
-        const query = 'INSERT INTO config (id,pins) VALUES (@id,@pins)';
-        await request.input('id', sql.VarChar, id).input('pins', sql.NVarChar, pinsstring).query(query);
+        const query = 'INSERT INTO config (id,candidatenames,pins) VALUES (@id,@candidatenames,@pins)';
+        await request.input('id', sql.VarChar, id).input('candidatenames', sql.NVarChar, candnames).input('pins', sql.NVarChar, pinsstring).query(query);
         res.send(pins);
     } catch (err) {
         console.log(err);
