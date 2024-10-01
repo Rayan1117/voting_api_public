@@ -43,7 +43,7 @@ app.post("/config", async (req, res) => {
 
     } catch (err) {
         console.log(err);
-        res.status(500).send("FAILED");
+        res.status(500).send("FAILED TO Push");
     }
 });
 
