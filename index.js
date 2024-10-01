@@ -19,17 +19,42 @@ const dbConfig = {
         trustServerCertificate: true,
     },
 };
+async function createTableWithCustomName(tableName) {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const request = new sql.Request(pool);
 
+        // Check if the table already exists and create it if it doesn't
+        const createTableQuery = `
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '${tableName}')
+            BEGIN
+                CREATE TABLE ${tableName} (
+                    recordId INT IDENTITY(1,1) PRIMARY KEY,
+                    timestamp DATETIME,
+                    vote NVARCHAR(40),
+                    additionalInfo NVARCHAR(100)
+                );
+            END;
+        `;
+        await request.query(createTableQuery);
+        console.log(`Table '${tableName}' is ready`);
+        return tableName;
+    } catch (err) {
+        console.error('Error creating table', err);
+        throw err;
+    }
+}   await createTableWithCustomName(tableName);
 // Your existing routes
 app.post("/config", async (req, res) => {
     try {
         const pool = await sql.connect(dbConfig);
         const request = new sql.Request;
-        const { id,candinames, pins,grouppins,vote } = req.body;
+        const { tableName,id,candinames, pins,grouppins } = req.body;
         const pinsstring = JSON.stringify(pins);
         const candstring=JSON.stringify(candinames);
         const grpstring=JSON.stringify(grouppins);
-        const query = 'INSERT INTO config (id,candidatenames,pins,grouppins) VALUES (@id,@candidatenames,@pins,@grouppins)';
+        const tname=JSON.stringify(tableName);
+        const query = `INSERT INTO ${tname} (id,candidatenames,pins,grouppins) VALUES (@id,@candidatenames,@pins,@grouppins)`;
         await request.input('id', sql.VarChar, id).input('candidatenames',sql.NVarChar,candstring).input('pins', sql.NVarChar, pinsstring).input('grouppins',sql.NVarChar,grpstring).query(query);
         res.send(id,candinames,pins,grouppins);
     } catch (err) {
