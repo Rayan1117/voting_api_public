@@ -13,6 +13,7 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.0",
+    "http": "^0.0.1-security",
     "mssql": "^11.0.1",
     "nodemon": "^3.1.7",
     "socket.io": "^4.8.0",
