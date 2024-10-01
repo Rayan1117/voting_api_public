@@ -25,28 +25,41 @@ app.post("/config", async (req, res) => {
     try {
         const pool = await sql.connect(dbConfig);
         const request = new sql.Request;
+
         const { id, candnames, pins } = req.body;
         const pinsstring = JSON.stringify(pins);
         const query = 'INSERT INTO config (id,candidatenames,pins) VALUES (@id,@candidatenames,@pins)';
         await request.input('id', sql.VarChar, id).input('candidatenames', sql.NVarChar, candnames).input('pins', sql.NVarChar, pinsstring).query(query);
         res.send(pins);
+
+        const { id, candinames, pins, grouppins, vote } = req.body;
+        const pinsstring = JSON.stringify(pins);
+        const candstring = JSON.stringify(candinames);
+        const grpstring = JSON.stringify(grouppins);
+        const votestring = JSON.stringify(vote);
+        const query = 'INSERT INTO config (id,candidatenames,pins,grouppins,vote) VALUES (@id,@candidatenames,@pins,@grouppins,@vote)';
+        await request.input('id', sql.VarChar, id).input('candidatenames', sql.NVarChar, candstring).input('pins', sql.NVarChar, pinsstring).input('grouppins', sql.NVarChar, grpstring).input('vote', sql.NVarChar, votestring).query(query);
+        res.send(id, candinames, pins, grouppins, vote);
+
     } catch (err) {
         console.log(err);
         res.status(500).send("FAILED");
     }
 });
 
-app.get("/test", async (req, res) => {
+app.get("/config/:tableName", async (req, res) => {
     try {
         const pool = await sql.connect(dbConfig);
         const request = new sql.Request;
-        const query = 'SELECT TOP 1 * FROM config ORDER BY id DESC';
+        const { tableName } = req.params;
+        const query = `SELECT TOP 1 * FROM ${tableName} ORDER BY id DESC`;
         const response = await request.query(query);
         const result = response.recordset[0];
-        const { id, pins } = result;
-        res.send(`${id} , ${pins}`);
+        console.log(result)
+        const { id, candidatenames, pins, grouppins, vote } = result;
+        res.send(`${id} , ${candidatenames},${pins},${grouppins} , ${vote}`);
     } catch (err) {
-        res.send(`FAILED TO GET ${err.message}`);
+        res.send(`FAILED TO Get ${err.message}`);
     }
 });
 
