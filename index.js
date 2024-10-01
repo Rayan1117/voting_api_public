@@ -35,7 +35,7 @@ app.post("/config", async (req, res) => {
         res.send(id,candinames,pins,grouppins,vote);
     } catch (err) {
         console.log(err);
-        res.status(500).send("FAILED");
+        res.status(500).send("FAILED TO Push");
     }
 });
 
