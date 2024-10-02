@@ -27,13 +27,32 @@ const dbConfig = {
     },
 };
 
+// Function to create a table if it doesn't exist
+const createTableIfNotExists = async (tableName) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const request = new sql.Request();
+        const createTableQuery = `
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '${tableName}')
+            BEGIN
+                CREATE TABLE ${tableName} (
+                    id NVARCHAR(50) PRIMARY KEY,
+                    candidatenames NVARCHAR(MAX),
+                    pins NVARCHAR(MAX),
+                    grouppins NVARCHAR(MAX)
+                );
+            END
+        `;
+        await request.query(createTableQuery);
+        console.log(`Table ${tableName} created or already exists.`);
+    } catch (err) {
+        console.log("Error creating table:", err);
+    }
+};
+
 io.on('connection', (socket) => {
     console.log("A user connected:", socket.id);
 
-    // Emit a welcome message when a client connects
-    socket.emit('data', { message: 'Welcome to the Socket.IO server!' });
-
-    // Handle client disconnection
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });
@@ -41,15 +60,19 @@ io.on('connection', (socket) => {
 
 // Endpoint to handle configuration posting
 app.post("/config", async (req, res) => {
+    const { tableName, id, candinames, pins, grouppins } = req.body;
+
     try {
+        // Create the table if it doesn't exist
+        await createTableIfNotExists(tableName);
+
         const pool = await sql.connect(dbConfig);
         const request = new sql.Request();
-        const { tableName, id, candinames, pins, grouppins } = req.body;
         const pinsstring = JSON.stringify(pins);
         const candstring = JSON.stringify(candinames);
         const grpstring = JSON.stringify(grouppins);
-        const tname = JSON.stringify(tableName);
-        const query = `INSERT INTO ${tname} (id, candidatenames, pins, grouppins) VALUES (@id, @candidatenames, @pins, @grouppins)`;
+
+        const query = `INSERT INTO ${tableName} (id, candidatenames, pins, grouppins) VALUES (@id, @candidatenames, @pins, @grouppins)`;
         await request.input('id', sql.VarChar, id)
             .input('candidatenames', sql.NVarChar, candstring)
             .input('pins', sql.NVarChar, pinsstring)
@@ -63,7 +86,6 @@ app.post("/config", async (req, res) => {
         res.status(500).send("FAILED TO Push");
     }
 });
-
 
 // Endpoint to combine configurations
 app.get("/combine", async (req, res) => {
