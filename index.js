@@ -3,6 +3,11 @@ const cors = require('cors');
 const sql = require('mssql');
 const http = require("http");
 const socketIo = require("socket.io");
+const os = require("os")
+const db = require('./database')
+const { v4: uuidV4 } = require("uuid")
+
+const socketToEspID = new Map()
 
 const app = express();
 const server = http.createServer(app);
@@ -17,110 +22,175 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-const dbConfig = {
-    user: 'MZCET',
-    password: 'MZCET@1234',
-    server: '103.207.1.91',
-    database: 'CSE8761',
-    options: {
-        trustServerCertificate: true,
-    },
-};
 
-// Function to create a table if it doesn't exist
-const createTableIfNotExists = async (tableName) => {
+const createConfigIfNotExists = async () => {
     try {
-        const pool = await sql.connect(dbConfig);
-        const request = new sql.Request();
         const createTableQuery = `
-            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '${tableName}')
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = config)
             BEGIN
-                CREATE TABLE ${tableName} (
-                    id NVARCHAR(50) PRIMARY KEY,
-                    candidatenames NVARCHAR(MAX),
-                    pins NVARCHAR(MAX),
-                    grouppins NVARCHAR(MAX)
-                );
+            CREATE TABLE config (
+                config_id VARCHAR(36) PRIMARY KEY,
+                pin_bits NVARCHAR(36) NOT NULL,
+                group_pins NVARCHAR(36) NOT NULL
+            );
             END
         `;
-        await request.query(createTableQuery);
-        console.log(`Table ${tableName} created or already exists.`);
+        await new db().execQuery(createTableQuery);
+        console.log(`Table config created or already exists.`);
     } catch (err) {
         console.log("Error creating table:", err);
     }
 };
 
+const createElectionIfNotExist = async () => {
+    try {
+        const query = `
+        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = election)
+        BEGIN
+        CREATE TABLE election (
+            election_id VARCHAR(36) PRIMARY KEY,
+            election_name NVARCHAR(255) UNIQUE NOT NULL,
+            config_id VARCHAR(36),
+            FOREIGN KEY (config_id) REFERENCES config(config_id)
+        );
+        END
+    `;
+        await new db().execQuery(query)
+        console.log(`Table election created or already exists.`);
+    } catch (err) {
+        console.log("Error creating table:", err);
+    }
+}
+
 io.on('connection', (socket) => {
-    console.log("A user connected:", socket.id);
+
+    console.log(socket.id);
+
+    socket.on("post-connection", (data) => {
+        console.log(data.id);
+        socketToEspID.set(data.id, socket.id)
+    })
+
+    socket.on("message", (data) => {
+        console.log(data);
+    })
+
+    socket.on('pre-disconnect', (data) => {
+        socketToEspID.delete(data.id)
+    })
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });
 });
 
-// Endpoint to handle configuration posting
-app.post("/config", async (req, res) => {
-    const { tableName, id, candinames, pins, grouppins } = req.body;
+
+app.post("/set-config", async (req, res) => {
+    const { espID, pins, grouppins } = req.body;
 
     try {
-        // Create the table if it doesn't exist
-        await createTableIfNotExists(tableName);
 
-        const pool = await sql.connect(dbConfig);
-        const request = new sql.Request();
+        await createConfigIfNotExists("config");
+
+        const id = uuidV4()
+        console.log(id);
+
         const pinsstring = JSON.stringify(pins);
-        const candstring = JSON.stringify(candinames);
         const grpstring = JSON.stringify(grouppins);
 
-        const query = `INSERT INTO ${tableName} (id, candidatenames, pins, grouppins) VALUES (@id, @candidatenames, @pins, @grouppins)`;
-        await request.input('id', sql.VarChar, id)
-            .input('candidatenames', sql.NVarChar, candstring)
-            .input('pins', sql.NVarChar, pinsstring)
-            .input('grouppins', sql.NVarChar, grpstring)
-            .query(query);
-        
-        io.emit('data', { id, pinsstring });
-        res.send({ id, candinames, pins, grouppins });
+        const query = `INSERT INTO config (config_id, pin_bits, group_pins) VALUES (@id, @pins, @grouppins)`;
+        await new db().execQuery(query, {
+            "id": {
+                "type": sql.VarChar,
+                "value": id
+            },
+            "pins": {
+                "type": sql.NVarChar,
+                "value": pinsstring
+            },
+            "grouppins": {
+                "type": sql.NVarChar,
+                "value": grpstring
+            }
+        });
+
+        let socketID = socketToEspID.get(espID)
+
+        io.to(socketID).emit('data', { id, pinsstring });
+
+        res.send({ id, pins, grouppins });
     } catch (err) {
         console.log(err);
-        res.status(500).send("FAILED TO Push");
+        res.status(500).send(err.message);
     }
 });
 
-// Endpoint to combine configurations
-app.get("/combine", async (req, res) => {
+app.post('/create-election', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
-        const request = new sql.Request();
+        const { candidates, electionName, configId } = req.body
 
-        const query = 'SELECT * FROM config JOIN configvotes on config.id=configvotes.id';
-        const response = await request.query(query);
-        const result = response.recordset[0];
-        const { id, candidatenames, pins, grouppins, NONE, vote } = result;
-        res.send(`${id[0]} , ${candidatenames}, ${pins}, ${grouppins}, ${vote}`);
+        await createElectionIfNotExist()
+
+        const election_id = uuidV4()
+
+        const query = `INSERT INTO election(election_id, election_name, config_id, candidates)
+                        VALUES(@e_id, @e_name, @config_id, @candidates)`
+
+        await new db().execQuery(query, {
+            "e_id": {
+                "type": sql.VarChar,
+                "value": election_id
+            },
+            "e_name": {
+                "type": sql.NVarChar,
+                "value": electionName
+            },
+            "config_id": {
+                "type": sql.VarChar,
+                "value": configId
+            },
+            "candidates": {
+                "type": sql.NVarChar,
+                "value": candidates
+            },
+        })
+
+        return res.status(201).json({
+            "message": `election created successfully ${election_id}`
+        })
+
     } catch (err) {
-        res.send(err.message);
+        return res.status(400).json({ "error": err.message })
     }
-});
+})
 
-// Endpoint to get configurations by table name
-app.get("/config/:tableName", async (req, res) => {
+app.post("/start-election", async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
-        const request = new sql.Request();
-        const { tableName } = req.params;
-        const query = `SELECT TOP 1 * FROM ${tableName} ORDER BY id DESC`;
-        const response = await request.query(query);
-        const result = response.recordset[0];
-        console.log(result);
-        const { id, candidatenames, pins, grouppins } = result;
-        res.send(`${id} , ${candidatenames}, ${pins}, ${grouppins}`);
-    } catch (err) {
-        res.send(`FAILED TO GET ${err.message}`);
-    }
-});
+        const {electionId} = req.body  
+        
+        
 
-// Start the server
+    } catch (err) {
+
+    }
+})
+
+app.post("/cast-vote", async (req, res) => {
+    try {
+
+    } catch (err) {
+
+    }
+})
+
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Listening on port ${PORT}`);
+    const networkInterfaces = os.networkInterfaces();
+
+    Object.keys(networkInterfaces).forEach((iface) => {
+        networkInterfaces[iface].forEach((details) => {
+            if (details.family === 'IPv4' && !details.internal) {
+                console.log(`Server running at http://${details.address}:${PORT}/`);
+            }
+        });
+    });
 });
