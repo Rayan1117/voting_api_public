@@ -1,21 +1,18 @@
 const express = require('express');
 const cors = require('cors');
-const sql = require('mssql');
 const http = require("http");
 const socketIo = require("socket.io");
 const os = require("os")
-const db = require('./database');
 const electionRoute = require('./routes/election_route');
 const configRoute = require('./routes/config_route');
-
-
-const EspToSocketID = new Map()
+const {addSocket, removeSocket} = require('./ProcessMemory/espToSocketMap')
+const {voteRoute} = require('./routes/vote_cast')
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
-        transports: ['websocket'], // Force only websocket transport
+        transports: ['websocket'],
         allowEIO3: true,  
         origin: ["https://hoppscotch.io", "http://localhost:3000", "*"],
         methods: ["GET", "POST"]
@@ -34,7 +31,7 @@ io.on('connection', (socket) => {
     socket.on("post-connection", (data) => {
         console.log(data.id);
         const espID = data.id
-        EspToSocketID.set(espID, socket)
+        addSocket(espID, socket)
     })
 
     socket.on("message", (data) => {
@@ -42,13 +39,11 @@ io.on('connection', (socket) => {
     })
 
     socket.on('pre-disconnect', (data) => {
-        EspToSocketID.delete(JSON.parse(data).id)
+        removeSocket(JSON.parse(data).id)
     })
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
-        console.log(EspToSocketID);
-
     });
 });
 
@@ -56,13 +51,8 @@ app.use('/election', electionRoute)
 
 app.use('/config', configRoute  )
 
-app.post("/cast-vote", async (req, res) => {
-    try {
+app.use('/vote', voteRoute)
 
-    } catch (err) {
-
-    }
-})
 
 server.listen(PORT, '0.0.0.0', () => {
     const networkInterfaces = os.networkInterfaces();

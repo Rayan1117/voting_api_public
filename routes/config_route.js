@@ -2,6 +2,9 @@ const express = require('express')
 const configRoute = express.Router()
 const { v4: uuidV4 } = require("uuid");
 const createConfigIfNotExists = require('../services/create_config');
+const db = require('../database');
+const sql = require('mssql');
+const {getSocket} = require('../ProcessMemory/espToSocketMap')
 
 configRoute.post("/create-config", async (req, res) => {
     const { espID, pins, grouppins } = req.body;
@@ -32,7 +35,7 @@ configRoute.post("/create-config", async (req, res) => {
             }
         });
 
-        let socket = EspToSocketID.get(espID)
+        let socket = getSocket(espID)
 
         socket.emit('data', { id, pinsstring });
 

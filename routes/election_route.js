@@ -2,6 +2,9 @@ const express = require('express')
 const electionRoute = express.Router()
 const { v4: uuidV4 } = require("uuid")
 const createElectionIfNotExist = require('../services/create_election');
+const sql = require('mssql');
+const db = require('../database');
+const { getSocket } = require('../ProcessMemory/espToSocketMap');
 
 electionRoute.post('/create-election', async (req, res) => {
     try {
@@ -88,7 +91,11 @@ electionRoute.post("/start-election", async (req, res) => {
             throw new Error("this election has already ended")
         }
 
-        const socket = EspToSocketID.get(espID)
+        const socket = getSocket(espID)
+
+        if (!socket) {
+            throw new Error("socket for the esp id not found")
+        }
 
         socket.emit("change-config", { pin_bits })
 
@@ -109,6 +116,24 @@ electionRoute.post("/start-election", async (req, res) => {
                         "type": sql.VarChar,
                         "value": electionId
                     }
+                });
+
+                let startVoteQuery = "INSERT INTO web_utilities(election_id) VALUES(@election_id)"
+
+                await new db().execQuery(startVoteQuery, {
+                    "election_id": {
+                        "type": sql.VarChar,
+                        "value": electionId
+                    }
+                })
+                
+                startVoteQuery = "INSERT INTO vote_counts(election_id) VALUES(@election_id)"
+
+                await new db().execQuery(startVoteQuery, {
+                    "election_id": {
+                        "type": sql.VarChar,
+                        "value": electionId
+                    }
                 })
 
                 return res.send("Election Started Successfully");
@@ -120,7 +145,41 @@ electionRoute.post("/start-election", async (req, res) => {
     } catch (err) {
         return res.status(400).json({ "error": err.message })
     }
-})
+});
 
+electionRoute.post("/end-election", async (req, res) => {
+    try {
+        const { electionId } = req.body
+
+        console.log(electionId);
+
+
+        const getQuery = "SELECT * FROM election WHERE election_id = @election_id"
+
+        const { isCurrent } = await new db().execQuery(getQuery, {
+            "election_id": {
+                "type": sql.VarChar,
+                "value": electionId
+            }
+        }).then(result => result[0])
+
+        if (!isCurrent) {
+            throw new Error("this is not an ongoing election")
+        }
+
+        const query = "UPDATE election SET isEnd = 1 WHERE election_id = @election_id"
+
+        await new db().execQuery(query, {
+            "election_id": {
+                "type": sql.VarChar,
+                "value": electionId
+            }
+        })
+
+        return res.status(200).send("Election ends")
+    } catch (err) {
+        return res.status(400).json({ "error": err.message })
+    }
+})
 
 module.exports = electionRoute
