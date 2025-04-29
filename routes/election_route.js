@@ -47,7 +47,7 @@ electionRoute.post('/create-election', async (req, res) => {
 
 electionRoute.post("/start-election", async (req, res) => {
     try {
-        const { electionId, espID } = req.body
+        const { electionId, espId } = req.body
 
         if (!electionId) {
             throw new Error("election id field is required")
@@ -91,7 +91,7 @@ electionRoute.post("/start-election", async (req, res) => {
             throw new Error("this election has already ended")
         }
 
-        const socket = getSocket(espID)
+        const socket = getSocket(espId)
 
         if (!socket) {
             throw new Error("socket for the esp id not found")
