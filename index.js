@@ -20,8 +20,6 @@ const io = socketIo(server, {
     }
 });
 
-const electionNamespace = io.of('/election'); 
-
 const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
@@ -46,14 +44,14 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });
-    
+
     socket.on('start-election', (data) => {
         const espId = data.espId
         console.log(`Election ${espId} started`);
 
         socket.join(espId);
 
-        electionNamespace.to(espId).emit('election-started', espId);
+        io.to(espId).emit('election-started', espId);
     });
 
     socket.on('cast-vote', async ({ espId, electionId }) => {
@@ -63,7 +61,7 @@ io.on('connection', (socket) => {
 
             await voteCast(electionId, espId).catch(err => { throw err });
 
-            electionNamespace.to(espId).emit('vote-updated', { voteIndex });
+            io.to(espId).emit('vote-updated', { voteIndex });
         } catch (err) {
             console.log(err.message);
         }
@@ -72,9 +70,19 @@ io.on('connection', (socket) => {
     socket.on("vote-selected", async ({ espId, voteIndex }) => {
         try {
             console.log(espId, voteIndex);
+
+            const roomName = espId;
+            const room = io.sockets.adapter.rooms[roomName];
+
+            const count = room ? room.length : 0;
+
+            if(count !== 2){
+                throw new Error("EVM or App got disconnected!")
+            }
+
             addVoteIndex(espId, voteIndex);
 
-            electionNamespace.to(espId).emit("vote-selected", voteIndex);
+            io.to(espId).emit("vote-selected", voteIndex);
         } catch (err) {
             console.log(err.message);
         }

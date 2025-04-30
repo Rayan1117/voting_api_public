@@ -1,251 +1,220 @@
 #include <WiFi.h>
-#include <FirebaseESP32.h>
-#include <time.h> // Include the time library for timestamps
+#include <SocketIoClient.h>
+#include <ArduinoJson.h> // Ensure you have this library for JSON parsing
 
-// Wi-Fi credentials
-#define WIFI_SSID "novotech"
-#define WIFI_PASSWORD "12345678"
+const char* ssid = "ARUN";                // Replace with your network SSID
+const char* password = "12345678";      // Replace with your network password
+const char* host = "192.168.137.1";         // Replace with your server IP
 
-// Firebase Project credentials
-#define FIREBASE_HOST "smart-evm-6d9a5-default-rtdb.firebaseio.com"
-#define FIREBASE_AUTH "g9twGBPQ20bpmPVSkmYv4RPKDoPZSGXsyApaJm2n"
+SocketIoClient webSocket;
 
-// Firebase instances
-FirebaseData firebaseData;
-FirebaseConfig config;
-FirebaseAuth auth;
+const String EspId = "NVEM1234";
+// Define the size of the pinsstring array
+const int NUM_PINS = 8;
 
-// Button and LED pins
-const int boy1Button = 4;
-const int boy2Button = 5;
-const int boy3Button = 12;
-const int boy4Button = 13;
-const int girl1Button = 14;
-const int girl2Button = 27;
-const int girl3Button = 26;
-const int girl4Button = 25;
-const int boy1LedPin = 15;
-const int boy2LedPin = 33;
-const int boy3LedPin = 18;
-const int boy4LedPin = 19;
-const int girl1LedPin = 21;
-const int girl2LedPin = 22;
-const int girl3LedPin = 23;
-const int girl4LedPin = 32;
+int currentPins[NUM_PINS] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-// Define the Wi-Fi status LED pin
-const int wifiStatusLedPin = 2;
+// Define the pins for the push buttons
+const int buttonPins[NUM_PINS] = {2, 4, 16, 17, 18, 19, 21, 22}; // Replace with your actual button pin numbers
 
-// Variable to track the selected button
-int selectedCandidate = -1; // 1-4 for boys, 5-8 for girls
+int selectedCandidate;
 
-void setup() {
-  Serial.begin(115200);
+bool buttonPressed = false;
 
-  // Initialize button and LED pins
-  pinMode(boy1Button, INPUT_PULLUP);
-  pinMode(boy2Button, INPUT_PULLUP);
-  pinMode(boy3Button, INPUT_PULLUP);
-  pinMode(boy4Button, INPUT_PULLUP);
-  pinMode(girl1Button, INPUT_PULLUP);
-  pinMode(girl2Button, INPUT_PULLUP);
-  pinMode(girl3Button, INPUT_PULLUP);
-  pinMode(girl4Button, INPUT_PULLUP);
-  pinMode(boy1LedPin, OUTPUT);
-  pinMode(boy2LedPin, OUTPUT);
-  pinMode(boy3LedPin, OUTPUT);
-  pinMode(boy4LedPin, OUTPUT);
-  pinMode(girl1LedPin, OUTPUT);
-  pinMode(girl2LedPin, OUTPUT);
-  pinMode(girl3LedPin, OUTPUT);
-  pinMode(girl4LedPin, OUTPUT);
+const int Button1 = 0;
+const int Button2 = 5;
+const int Button3 = 12;
+const int Button4 = 13;
+const int Button5 = 14;
+const int Button6 = 27;
+const int Button7 = 26;
+const int Button8 = 25;
+const int Button1LedPin = 15;
+const int Button2LedPin = 33;
+const int Button3LedPin = 18;
+const int Button4LedPin = 19;
+const int Button5LedPin = 21;
+const int Button6LedPin = 22;
+const int Button7LedPin = 23;
+const int Button8LedPin = 32;
 
-  // Initialize the Wi-Fi status LED pin
-  pinMode(wifiStatusLedPin, OUTPUT);
-  digitalWrite(wifiStatusLedPin, LOW); // Turn off initially
+void event(const char* payload, size_t length) {
+    Serial.printf("Message received: %s\n", payload);
 
-  // Connect to Wi-Fi
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Connecting to Wi-Fi...");
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println(" Connected to Wi-Fi");
-
-  // Turn on the Wi-Fi status LED
-  digitalWrite(wifiStatusLedPin, HIGH);
-
-  // Configure Firebase
-  config.host = FIREBASE_HOST;
-  config.signer.tokens.legacy_token = FIREBASE_AUTH;
-  Firebase.begin(&config, &auth);
-  Firebase.reconnectWiFi(true);
-
-  // Initialize time service for timestamps
-  configTime(19800, 0, "pool.ntp.org", "time.nist.gov");
-}
-
-void loop() {
-  // Check if no candidate is selected
-  if (selectedCandidate == -1) {
-    // Check button presses
-    if (digitalRead(boy1Button) == LOW) {
-      selectedCandidate = 1;
-      digitalWrite(boy1LedPin, HIGH);
-      Serial.println("Boy1 pressed");
-      setResetFlag(1); // Set reset_flag to 1 after button press
-    } else if (digitalRead(boy2Button) == LOW) {
-      selectedCandidate = 2;
-      digitalWrite(boy2LedPin, HIGH);
-      Serial.println("Boy2 pressed");
-      setResetFlag(1); // Set reset_flag to 1 after button press
-    } else if (digitalRead(boy3Button) == LOW) {
-      selectedCandidate = 3;
-      digitalWrite(boy3LedPin, HIGH);
-      Serial.println("Boy3 pressed");
-      setResetFlag(1); // Set reset_flag to 1 after button press
-    } else if (digitalRead(boy4Button) == LOW) {
-      selectedCandidate = 4;
-      digitalWrite(boy4LedPin, HIGH);
-      Serial.println("Boy4 pressed");
-      setResetFlag(1); // Set reset_flag to 1 after button press
-    } else if (digitalRead(girl1Button) == LOW) {
-      selectedCandidate = 5;
-      digitalWrite(girl1LedPin, HIGH);
-      Serial.println("Girl1 pressed");
-      setResetFlag(1); // Set reset_flag to 1 after button press
-    } else if (digitalRead(girl2Button) == LOW) {
-      selectedCandidate = 6;
-      digitalWrite(girl2LedPin, HIGH);
-      Serial.println("Girl2 pressed");
-      setResetFlag(1); // Set reset_flag to 1 after button press
-    } else if (digitalRead(girl3Button) == LOW) {
-      selectedCandidate = 7;
-      digitalWrite(girl3LedPin, HIGH);
-      Serial.println("Girl3 pressed");
-      setRe7setFlag(1); // Set reset_flag to 1 after button press
-    } else if (digitalRead(girl4Button) == LOW) {
-      selectedCandidate = 8;
-      digitalWrite(girl4LedPin, HIGH);
-      Serial.println("Girl4 pressed");
-      setResetFlag(1); // Set reset_flag to 1 after button press
-    }
-  }
-
-  // Check flag in Firebase if a button has been pressed
-  if (selectedCandidate != -1) {
-    String flagUrl = "/NEVM8024/flag";
-
-    if (Firebase.getInt(firebaseData, flagUrl)) {
-      int flagStatus = firebaseData.intData();
-
-      if (flagStatus == 1) { // If the flag is raised, call staticVote
-        Serial.println("Flag raised, processing vote...");
-
-        // Call the voting function with the selected candidate index
-        staticVote(selectedCandidate); 
-
-        // Reset the selected candidate and LEDs after voting
-        reset();
-
-        // Reset the flag after processing
-        Firebase.setInt(firebaseData, flagUrl, 0);
-        Serial.println("Flag reset after voting.");
-      }
-    } else {
-      Serial.println("Failed to get flag: " + firebaseData.errorReason());
-    }
-  }
-}
-
-// Cast votes and update Firebase
-void staticVote(int candidateIndex) {
-    String voteUrl = "/NEVM8024/vote_count";
-    String voteDetailsUrl = "/NEVM8024/vote_details";
-
-    // Read current vote counts
-    if (Firebase.getString(firebaseData, voteUrl)) {
-        String currentVotes = firebaseData.stringData();
-        
-        int voteCounts[8]; // Assuming 8 candidates (4 boys, 4 girls)
-        int index = 0;
-        int start = 0;
-        while ((index < 8) && (start < currentVotes.length())) {
-            int end = currentVotes.indexOf(',', start);
-            if (end == -1) {
-                end = currentVotes.length();
-            }
-            voteCounts[index++] = currentVotes.substring(start, end).toInt();
-            start = end + 1;
-        }
-
-        // Increment votes for the selected candidate
-        if (candidateIndex != -1 && candidateIndex - 1 < 8) {
-            voteCounts[candidateIndex - 1]++; // Update the vote count for the selected candidate
-            updateVoteDetails(candidateIndex - 1); // Update details for the selected candidate
-        }
-
-        // Update vote counts in Firebase
-        String newVoteCounts = "";
-        for (int i = 0; i < 8; i++) {
-            newVoteCounts += String(voteCounts[i]);
-            if (i < 7) newVoteCounts += ",";
-        }
-        Firebase.setString(firebaseData, voteUrl, newVoteCounts);
-
-        // Reset reset_flag after successfully updating the vote
-        setResetFlag(0); // Reset reset_flag to 0 after vote update
-    } else {
-        Serial.println("Failed to fetch current votes: " + firebaseData.errorReason());
-    }
-}
-
-// Update vote details in Firebase with timestamp
-void updateVoteDetails(int candidateIndex) {
-    String voteDetailsUrl = "/NEVM8024/vote_details";
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
-        Serial.println("Failed to obtain time");
+    // Parse the JSON payload
+    DynamicJsonDocument doc(1024);
+    DeserializationError error = deserializeJson(doc, payload);
+    if (error) {
+        Serial.println("Failed to parse JSON!");
         return;
     }
 
-    String timestamp = String(timeinfo.tm_year + 1900) + "-" +
-                       String(timeinfo.tm_mon + 1) + "-" +
-                       String(timeinfo.tm_mday) + "T" +
-                       String(timeinfo.tm_hour) + ":" +
-                       String(timeinfo.tm_min) + ":" +
-                       String(timeinfo.tm_sec) + "Z";
+    // Check if the payload contains pinsstring
+    if (!doc.containsKey("pin_bits")) {
+        Serial.println("pinsstring not found in the message.");
+        return;
+    }
 
-    FirebaseJson voteDetailJson;
-    voteDetailJson.set("candidate", String(candidateIndex));
-    voteDetailJson.set("timestamp", timestamp);
-    Firebase.pushJSON(firebaseData, voteDetailsUrl, voteDetailJson);
+    // Get the pinsstring from the payload
+    const char* pinsString = doc["pin_bits"];
+    // Parse the pinsstring
+    DynamicJsonDocument pinsDoc(1024);
+    DeserializationError pinsError = deserializeJson(pinsDoc, pinsString);
+    if (pinsError) {
+        Serial.println("Failed to parse pinsstring!");
+        return;
+    }
+    // Update currentPins with the received data
+    for (int i = 0; i < NUM_PINS; i++) {
+        currentPins[i] = pinsDoc[i]; // Fill currentPins with parsed data
+    }
+
+        // If they are different, update oldPins with currentPins
+        Serial.println("Configuration has changed. Updating old pins.");
+
+        // Print the updated old pins and which buttons are enabled
+        Serial.print("Updated pins: ");
+        for (int i = 0; i < NUM_PINS; i++) {
+            Serial.print(currentPins[i]);
+            Serial.print(" ");
+        }
+        Serial.println(); // New line after printing all old pins
+        
+        Serial.print("Enabled buttons: ");
+        for (int i = 0; i < NUM_PINS; i++) {
+            // Check the digital state to print which buttons are actually enabled
+            if (currentPins[i] ==  1) {
+                Serial.print("Button ");
+                Serial.print(i + 1); // Print button number (1 to NUM_PINS)
+                Serial.print(" ");
+            }
+        }
+        Serial.println();
+      //String changed ="changed successfully";
+        webSocket.emit("config-changed", "{\"message\":\"changed successfully\"}");
+        webSocket.emit("start-election", "{\"espId\":\"NVEM1234\"}");
+        webSocket.on("vote-updated", voteCasted);
 }
 
-// Reset the LED states and selections
-void reset() {
-    digitalWrite(boy1LedPin, LOW);
-    digitalWrite(boy2LedPin, LOW);
-    digitalWrite(boy3LedPin, LOW);
-    digitalWrite(boy4LedPin, LOW);
-    digitalWrite(girl1LedPin, LOW);
-    digitalWrite(girl2LedPin, LOW);
-    digitalWrite(girl3LedPin, LOW);
-    digitalWrite(girl4LedPin, LOW);
-
-    // Reset selection
-    selectedCandidate = -1; // Reset the selected candidate
+void voteCasted(const char* payload, size_t length){
+  Serial.println("Reset the button to work again");
+  selectedCandidate = -1;
 }
 
-// Function to set or reset the reset_flag in Firebase
-void setResetFlag(int value) {
-  String resetFlagUrl = "/NEVM8024/reset_flag";
-  if (Firebase.setInt(firebaseData, resetFlagUrl, value)) {
-    Serial.println("Reset flag set to: " + String(value));
-  } else {
-    Serial.println("Failed to set reset flag: " + firebaseData.errorReason());
-  }
+void onConnect(const char* payload, size_t length) {
+    Serial.println("Connected to server");
+}
+
+void onDisconnect(const char* payload, size_t length) {
+    Serial.println("Disconnected from server");
+}
+
+int selected_candidate = -1;
+
+void setup() {
+    Serial.begin(115200);
+    delay(1000);
+
+    pinMode(Button1,INPUT_PULLUP);
+    pinMode(Button2,INPUT_PULLUP);
+    pinMode(Button3,INPUT_PULLUP);
+    pinMode(Button4,INPUT_PULLUP);
+    pinMode(Button5,INPUT_PULLUP);
+    pinMode(Button6,INPUT_PULLUP);
+    pinMode(Button7,INPUT_PULLUP);
+    pinMode(Button8,INPUT_PULLUP);
+
+    pinMode(Button1LedPin,OUTPUT);
+    pinMode(Button2LedPin,OUTPUT);
+    pinMode(Button3LedPin,OUTPUT);
+    pinMode(Button4LedPin,OUTPUT);
+    pinMode(Button5LedPin,OUTPUT);
+    pinMode(Button6LedPin,OUTPUT);
+    pinMode(Button7LedPin,OUTPUT);
+    pinMode(Button8LedPin,OUTPUT);
+
+
+
+    // Connect to Wi-Fi
+    WiFi.begin(ssid, password);
+    Serial.print("Connecting to WiFi");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println(WiFi.localIP());
+    Serial.println("Connected to WiFi");
+
+    // Initialize button pins
+    for (int i = 0; i < NUM_PINS; i++) {
+        pinMode(buttonPins[i], OUTPUT); // Set button pins as OUTPUT
+        digitalWrite(buttonPins[i], LOW); // Initially disable all buttons
+    }
+
+    // Connect to WebSocket
+    webSocket.begin(host, 5000, "/socket.io/?EIO=3&transport=websocket");
+    webSocket.emit("post-connection", "{\"id\":\"NVEM1234\"}");  // Correctly serialized JSON string
+    webSocket.on("change-config", event); // Event listener for 'data' messages
+
+    // Set up event listeners for connection and disconnection
+    webSocket.on("connect", onConnect);
+    webSocket.on("disconnect", onDisconnect);
+
+}
+
+void loop() {
+    webSocket.loop();
+
+    // Check button presses and update selectedCandidate
+    if (selectedCandidate == -1) {
+        if (digitalRead(Button1) == LOW) {
+            selectedCandidate = 1;
+            buttonPressed = true;
+            digitalWrite(Button1LedPin, HIGH);
+            Serial.println("Button1 pressed");
+        } else if (digitalRead(Button2) == LOW) {
+            selectedCandidate = 2;
+            buttonPressed = true;
+            digitalWrite(Button2LedPin, HIGH);
+            Serial.println("Button2 pressed");
+        } else if (digitalRead(Button3) == LOW) {
+            selectedCandidate = 3;
+            buttonPressed = true;
+            digitalWrite(Button3LedPin, HIGH);
+            Serial.println("Button3 pressed");
+        } else if (digitalRead(Button4) == LOW) {
+            selectedCandidate = 4;
+            buttonPressed = true;
+            digitalWrite(Button4LedPin, HIGH); 
+            Serial.println("Button4 pressed");
+        } else if (digitalRead(Button5) == LOW) {
+            selectedCandidate = 5;
+            buttonPressed = true;
+            digitalWrite(Button5LedPin, HIGH);
+            Serial.println("Button5 pressed");
+        } else if (digitalRead(Button6) == LOW) {
+            selectedCandidate = 6;
+            buttonPressed = true;
+            digitalWrite(Button6LedPin, HIGH);
+            Serial.println("Button6 pressed");
+        } else if (digitalRead(Button7) == LOW) {
+            selectedCandidate = 7;
+            buttonPressed = true;
+            digitalWrite(Button7LedPin, HIGH);
+            Serial.println("Button7 pressed");
+        } else if (digitalRead(Button8) == LOW) {
+            selectedCandidate = 8;
+            buttonPressed = true;
+            digitalWrite(Button8LedPin, HIGH);
+            Serial.println("Button8 pressed");
+        }
+    }
+
+    // Emit the vote once a candidate is selected
+    if (selectedCandidate != -1 && buttonPressed == true) {
+        String voteData = "{\"espId\":\"NVEM1234\",\"voteIndex\":\"" + String(selectedCandidate) + "\"}";
+        webSocket.emit("vote-selected", voteData.c_str()); // Emit the selected vote to server
+        buttonPressed = false;
+    }
+
 }
