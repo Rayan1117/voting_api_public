@@ -1,7 +1,5 @@
 const vote = new Map()
 
-vote.set("NVEM1234",7)
-
 function addVoteIndex(espId, index) {
     vote.set(espId, index)
 }

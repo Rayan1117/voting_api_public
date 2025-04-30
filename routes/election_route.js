@@ -117,15 +117,6 @@ electionRoute.post("/start-election", async (req, res) => {
                         "value": electionId
                     }
                 });
-
-                let startVoteQuery = "INSERT INTO web_utilities(election_id) VALUES(@election_id)"
-
-                await new db().execQuery(startVoteQuery, {
-                    "election_id": {
-                        "type": sql.VarChar,
-                        "value": electionId
-                    }
-                })
                 
                 startVoteQuery = "INSERT INTO vote_counts(election_id) VALUES(@election_id)"
 

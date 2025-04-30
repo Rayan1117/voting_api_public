@@ -59,7 +59,7 @@ io.on('connection', (socket) => {
             const voteIndex = getVoteIndex(espId);
             console.log(`Vote received for election ${electionId} - index ${voteIndex}`);
 
-            await voteCast(electionId, espId).catch(err => { throw err });
+            await voteCast(electionId, espId, voteIndex).catch(err => { throw err });
 
             io.to(espId).emit('vote-updated', { voteIndex });
         } catch (err) {
@@ -77,6 +77,7 @@ io.on('connection', (socket) => {
             const count = room ? room.length : 0;
 
             if(count !== 2){
+                io.to(espId).emit("reset-selected","reset request")
                 throw new Error("EVM or App got disconnected!")
             }
 

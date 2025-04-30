@@ -4,7 +4,7 @@ const db = require('../database')
 const sql = require('mssql')
 const { getVoteIndex, deleteVoteIndex, vote } = require('../ProcessMemory/voteMemo')
 
-const voteCast = async function(electionId, espId) {
+const voteCast = async function(electionId, espId, index) {
     try {
 
         console.log(electionId);
@@ -19,8 +19,6 @@ const voteCast = async function(electionId, espId) {
         }).then(result => result[0])
 
         vote_count = JSON.parse(vote_count)
-
-        const index = getVoteIndex(espId)
 
         console.log(index);
 
