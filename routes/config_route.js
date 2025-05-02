@@ -9,7 +9,7 @@ const {getSocket} = require('../ProcessMemory/espToSocketMap')
 configRoute.post("/create-config", async (req, res) => {
     const { espID, pins, grouppins } = req.body;
 
-    try {
+    try {   
 
         await createConfigIfNotExists();
 

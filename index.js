@@ -13,12 +13,18 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
+        pingInterval: 10000,
+        pingTimeout: 5000,
         transports: ['websocket'],
         allowEIO3: true,
         origin: ["https://hoppscotch.io", "http://localhost:3000", "*"],
         methods: ["GET", "POST"]
     }
 });
+
+app.get('/test', (req, res) => {
+    return res.status(200).send("working properly")
+})
 
 const PORT = process.env.PORT || 5000;
 app.use(cors());

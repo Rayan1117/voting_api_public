@@ -4,7 +4,7 @@
 
 const char* ssid = "ARUN";                // Replace with your network SSID
 const char* password = "12345678";      // Replace with your network password
-const char* host = "192.168.137.1";         // Replace with your server IP
+const char* host = "192.168.137.137";         // Replace with your server IP
 
 SocketIoClient webSocket;
 
@@ -14,14 +14,11 @@ const int NUM_PINS = 8;
 
 int currentPins[NUM_PINS] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-// Define the pins for the push buttons
-const int buttonPins[NUM_PINS] = {2, 4, 16, 17, 18, 19, 21, 22}; // Replace with your actual button pin numbers
-
 int selectedCandidate;
 
 bool buttonPressed = false;
 
-const int Button1 = 0;
+const int Button1 = 4;
 const int Button2 = 5;
 const int Button3 = 12;
 const int Button4 = 13;
@@ -79,7 +76,7 @@ void event(const char* payload, size_t length) {
             Serial.print(" ");
         }
         Serial.println(); // New line after printing all old pins
-        
+
         Serial.print("Enabled buttons: ");
         for (int i = 0; i < NUM_PINS; i++) {
             // Check the digital state to print which buttons are actually enabled
@@ -92,13 +89,30 @@ void event(const char* payload, size_t length) {
         Serial.println();
       //String changed ="changed successfully";
         webSocket.emit("config-changed", "{\"message\":\"changed successfully\"}");
+        webSocket.on("election-started", startElection);
         webSocket.emit("start-election", "{\"espId\":\"NVEM1234\"}");
         webSocket.on("vote-updated", voteCasted);
+        webSocket.on("reset-selected", voteCasted);
 }
 
-void voteCasted(const char* payload, size_t length){
+void startElection(const char* payload, size_t length) {
+        delay(2000);
+        selectedCandidate = -1;
+    }
+
+void voteCasted(const char* payload, size_t length) {
   Serial.println("Reset the button to work again");
   selectedCandidate = -1;
+
+  // Manually set all LED pins to LOW
+  digitalWrite(Button1LedPin, LOW);
+  digitalWrite(Button2LedPin, LOW);
+  digitalWrite(Button3LedPin, LOW);
+  digitalWrite(Button4LedPin, LOW);
+  digitalWrite(Button5LedPin, LOW);
+  digitalWrite(Button6LedPin, LOW);
+  digitalWrite(Button7LedPin, LOW);
+  digitalWrite(Button8LedPin, LOW);
 }
 
 void onConnect(const char* payload, size_t length) {
@@ -133,8 +147,6 @@ void setup() {
     pinMode(Button7LedPin,OUTPUT);
     pinMode(Button8LedPin,OUTPUT);
 
-
-
     // Connect to Wi-Fi
     WiFi.begin(ssid, password);
     Serial.print("Connecting to WiFi");
@@ -144,12 +156,6 @@ void setup() {
     }
     Serial.println(WiFi.localIP());
     Serial.println("Connected to WiFi");
-
-    // Initialize button pins
-    for (int i = 0; i < NUM_PINS; i++) {
-        pinMode(buttonPins[i], OUTPUT); // Set button pins as OUTPUT
-        digitalWrite(buttonPins[i], LOW); // Initially disable all buttons
-    }
 
     // Connect to WebSocket
     webSocket.begin(host, 5000, "/socket.io/?EIO=3&transport=websocket");
@@ -185,7 +191,7 @@ void loop() {
         } else if (digitalRead(Button4) == LOW) {
             selectedCandidate = 4;
             buttonPressed = true;
-            digitalWrite(Button4LedPin, HIGH); 
+            digitalWrite(Button4LedPin, HIGH);
             Serial.println("Button4 pressed");
         } else if (digitalRead(Button5) == LOW) {
             selectedCandidate = 5;
@@ -212,7 +218,7 @@ void loop() {
 
     // Emit the vote once a candidate is selected
     if (selectedCandidate != -1 && buttonPressed == true) {
-        String voteData = "{\"espId\":\"NVEM1234\",\"voteIndex\":\"" + String(selectedCandidate) + "\"}";
+        String voteData = "{\"espId\":\"NVEM1234\",\"voteIndex\":\"" + String(selectedCandidate - 1) + "\"}";
         webSocket.emit("vote-selected", voteData.c_str()); // Emit the selected vote to server
         buttonPressed = false;
     }
