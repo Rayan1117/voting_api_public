@@ -8,13 +8,13 @@ const configRoute = require('./routes/config_route');
 const { addSocket, removeSocket } = require('./ProcessMemory/espToSocketMap');
 const { voteCast } = require('./routes/vote_cast');
 const { addVoteIndex, getVoteIndex } = require('./ProcessMemory/voteMemo');
+const {isInitialized, arePresent, addPresence, resetPresence} = require("./ProcessMemory/presenceMap")
+const {startupRoute} = require("./startup/startup_handler")
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
-        pingInterval: 10000,
-        pingTimeout: 5000,
         transports: ['websocket'],
         allowEIO3: true,
         origin: ["https://hoppscotch.io", "http://localhost:3000", "*"],
@@ -52,7 +52,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('start-election', (data) => {
-        const espId = data.espId
+        const { espId }= data
         console.log(`Election ${espId} started`);
 
         socket.join(espId);
@@ -73,24 +73,44 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on("present", (data) => {
+        const { room, role } = data;
+        isInitialized(room)
+        console.log(room, role)
+        addPresence(room, role)
+    });
+
     socket.on("vote-selected", async ({ espId, voteIndex }) => {
         try {
             console.log(espId, voteIndex);
 
-            const roomName = espId;
-            const room = io.sockets.adapter.rooms[roomName];
+            io.to(espId).emit("check-presence", espId);
+
+            const room = io.sockets.adapter.rooms[espId];
 
             const count = room ? room.length : 0;
 
-            if(count !== 2){
-                io.to(espId).emit("reset-selected","reset request")
-                throw new Error("EVM or App got disconnected!")
-            }
+            setTimeout(function()  {
+                console.log("executing")
+                if(!arePresent(espId)){
+                    console.log("presence");
+                    resetPresence(espId);
+                    io.to(espId).emit("reset-selected","reset request")
+                    console.log("EVM or App got disconnected from websocket");
+                    return
+                }
 
-            addVoteIndex(espId, voteIndex);
+                addVoteIndex(espId, voteIndex);
 
-            io.to(espId).emit("vote-selected", voteIndex);
+                resetPresence(espId)
+
+                io.to(espId).emit("vote-selected", voteIndex);
+                console.log("emitted")
+            }, 10000)
+
+
         } catch (err) {
+            resetPresence(espId);
             console.log(err.message);
         }
     });
@@ -98,13 +118,14 @@ io.on('connection', (socket) => {
 
 app.use('/election', electionRoute);
 app.use('/config', configRoute);
+app.use('/startup', startupRoute);
 
 server.listen(PORT, '0.0.0.0', () => {
     const networkInterfaces = os.networkInterfaces();
-    Object.keys(networkInterfaces).forEach((iface) => {
-        networkInterfaces[iface].forEach((details) => {
+    Object.keys(networkInterfaces).forEach((IFace) => {
+        networkInterfaces[IFace].forEach((details) => {
             if (details.family === 'IPv4' && !details.internal) {
-                console.log(`Server running at http://${details.address}:${PORT}/`);
+                console.log(`Server running at address ${details.address}:${PORT}/`);
             }
         });
     });
