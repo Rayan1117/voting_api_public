@@ -2,7 +2,7 @@ const express = require('express')
 const voteRoute = express.Router()
 const db = require('../database')
 const sql = require('mssql')
-const { getVoteIndex, deleteVoteIndex, vote } = require('../ProcessMemory/voteMemo')
+const { deleteVoteIndex } = require('../ProcessMemory/voteMemo')
 
 const voteCast = async function(electionId, espId, index) {
     try {

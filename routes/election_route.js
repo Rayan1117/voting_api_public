@@ -5,6 +5,9 @@ const createElectionIfNotExist = require('../services/create_election');
 const sql = require('mssql');
 const db = require('../database');
 const { getSocket } = require('../ProcessMemory/espToSocketMap');
+const {verifyRole} = require("../authorization/verify_role");
+
+electionRoute.use(verifyRole("admin"))
 
 electionRoute.post('/create-election', async (req, res) => {
     try {

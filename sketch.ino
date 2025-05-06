@@ -1,10 +1,11 @@
 #include <WiFi.h>
 #include <SocketIoClient.h>
 #include <ArduinoJson.h> // Ensure you have this library for JSON parsing
+#include <HTTPClient.h>
 
 const char* ssid = "ARUN";                // Replace with your network SSID
 const char* password = "12345678";      // Replace with your network password
-const char* host = "192.168.137.137";         // Replace with your server IP
+const char* host = "10.201.190.229";        // Replace with your server IP
 
 SocketIoClient webSocket;
 
@@ -34,6 +35,29 @@ const int Button5LedPin = 21;
 const int Button6LedPin = 22;
 const int Button7LedPin = 23;
 const int Button8LedPin = 32;
+
+void getStartupConfig(const char* espId) {
+  HTTPClient http;
+
+  String serverUrl = "http://10.201.190.229:5000/startup/get-config?espId=" + String(espId);
+
+  http.begin(serverUrl); // Starts HTTP connection
+  int httpCode = http.GET(); // Sends the GET request
+
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    Serial.println("Config received: ");
+    Serial.println(payload);
+    // Parse JSON and apply config
+  }
+  else if(httpCode == 400) {
+    Serial.println("There is no ongoing election");
+  } else {
+    Serial.printf("Failed to get config, error: %s\n", http.errorToString(httpCode).c_str());
+  }
+
+  http.end();
+}
 
 void event(const char* payload, size_t length) {
     Serial.printf("Message received: %s\n", payload);
@@ -93,6 +117,12 @@ void event(const char* payload, size_t length) {
         webSocket.emit("start-election", "{\"espId\":\"NVEM1234\"}");
         webSocket.on("vote-updated", voteCasted);
         webSocket.on("reset-selected", voteCasted);
+        webSocket.on("check-presence", registerPresence);
+}
+
+void registerPresence(const char* payload, size_t length) {
+    Serial.println("check-presence");
+    webSocket.emit("present", "{\"room\":\"NVEM1234\", \"role\":\"esp\"}");
 }
 
 void startElection(const char* payload, size_t length) {
@@ -157,6 +187,9 @@ void setup() {
     Serial.println(WiFi.localIP());
     Serial.println("Connected to WiFi");
 
+
+    getStartupConfig(EspId.c_str());
+
     // Connect to WebSocket
     webSocket.begin(host, 5000, "/socket.io/?EIO=3&transport=websocket");
     webSocket.emit("post-connection", "{\"id\":\"NVEM1234\"}");  // Correctly serialized JSON string
@@ -170,7 +203,6 @@ void setup() {
 
 void loop() {
     webSocket.loop();
-
     // Check button presses and update selectedCandidate
     if (selectedCandidate == -1) {
         if (digitalRead(Button1) == LOW) {

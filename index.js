@@ -10,6 +10,7 @@ const { voteCast } = require('./routes/vote_cast');
 const { addVoteIndex, getVoteIndex } = require('./ProcessMemory/voteMemo');
 const {isInitialized, arePresent, addPresence, resetPresence} = require("./ProcessMemory/presenceMap")
 const {startupRoute} = require("./startup/startup_handler")
+const {loginRouter} = require('./authentication/login')
 
 const app = express();
 const server = http.createServer(app);
@@ -119,6 +120,7 @@ io.on('connection', (socket) => {
 app.use('/election', electionRoute);
 app.use('/config', configRoute);
 app.use('/startup', startupRoute);
+app.use('/auth', loginRouter);
 
 server.listen(PORT, '0.0.0.0', () => {
     const networkInterfaces = os.networkInterfaces();

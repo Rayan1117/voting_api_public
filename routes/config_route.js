@@ -5,6 +5,10 @@ const createConfigIfNotExists = require('../services/create_config');
 const db = require('../database');
 const sql = require('mssql');
 const {getSocket} = require('../ProcessMemory/espToSocketMap')
+const {verifyRole} = require("../authorization/verify_role");
+
+
+configRoute.use(verifyRole("admin"))
 
 configRoute.post("/create-config", async (req, res) => {
     const { espID, pins, grouppins } = req.body;
