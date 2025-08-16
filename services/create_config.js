@@ -1,3 +1,4 @@
+const db = require('../database')
 const createConfigIfNotExists = async () => {
     try {
         const createTableQuery = `

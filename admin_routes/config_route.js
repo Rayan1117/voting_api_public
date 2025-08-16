@@ -4,16 +4,18 @@ const { v4: uuidV4 } = require("uuid");
 const createConfigIfNotExists = require('../services/create_config');
 const db = require('../database');
 const sql = require('mssql');
-const {getSocket} = require('../ProcessMemory/espToSocketMap')
-const {verifyRole} = require("../authorization/verify_role");
+const { getSocket } = require('../ProcessMemory/espToSocketMap')
+const { verifyRole } = require("../authorization/verify_role");
 
 
 configRoute.use(verifyRole("admin"))
 
 configRoute.post("/create-config", async (req, res) => {
-    const { espID, pins, grouppins } = req.body;
+    const { espID, name , pins, grouppins } = req.body;
 
-    try {   
+    console.log(name, pins, grouppins);
+    
+    try {
 
         await createConfigIfNotExists();
 
@@ -23,8 +25,12 @@ configRoute.post("/create-config", async (req, res) => {
         const pinsstring = JSON.stringify(pins);
         const grpstring = JSON.stringify(grouppins);
 
-        const query = `INSERT INTO config (config_id, pin_bits, group_pins) VALUES (@id, @pins, @grouppins)`;
+        const query = `INSERT INTO config (config_name, config_id, pin_bits, group_pins) VALUES (@name, @id, @pins, @grouppins)`;
         await new db().execQuery(query, {
+            "name": {
+                "type": sql.VarChar,
+                "value": name
+            },
             "id": {
                 "type": sql.VarChar,
                 "value": id
@@ -39,14 +45,10 @@ configRoute.post("/create-config", async (req, res) => {
             }
         });
 
-        let socket = getSocket(espID)
-
-        socket.emit('data', { id, pinsstring });
-
-        res.send({ id, pins, grouppins });
+        res.status(201).json({ "message": "configuration created successfully", "config_id": id });
     } catch (err) {
         console.log(err);
-        res.status(500).send(err.message);
+        res.status(400).send(err.message);
     }
 });
 

@@ -1,4 +1,4 @@
-
+const db = require('../database')
 const createElectionIfNotExist = async () => {
     try {
         const query = `

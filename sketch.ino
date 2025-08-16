@@ -120,7 +120,7 @@ void event(const char* payload, size_t length) {
         webSocket.on("check-presence", registerPresence);
 }
 
-void registerPresence(const char* payload, size_t length) {
+void registerPresence(const char* payload, size _t length) {
     Serial.println("check-presence");
     webSocket.emit("present", "{\"room\":\"NVEM1234\", \"role\":\"esp\"}");
 }
@@ -192,7 +192,7 @@ void setup() {
 
     // Connect to WebSocket
     webSocket.begin(host, 5000, "/socket.io/?EIO=3&transport=websocket");
-    webSocket.emit("post-connection", "{\"id\":\"NVEM1234\"}");  // Correctly serialized JSON string
+    webSocket.emit("post-connection", "{\"espId\":\"NVEM1234\"}");  // Correctly serialized JSON string
     webSocket.on("change-config", event); // Event listener for 'data' messages
 
     // Set up event listeners for connection and disconnection

@@ -9,7 +9,7 @@ loginRouter.post('/login', async (req, res) => {
         const {username, password} = req.body
 
         if(!username || !password) {
-            throw new Error('Invalid username and password')
+            throw new Error('EVM id and Password must not be empty')
         }
 
         const query = "SELECT role FROM users WHERE username = @username AND password = @password";
@@ -26,7 +26,7 @@ loginRouter.post('/login', async (req, res) => {
         }).then(result => result[0])
 
         if(!result) {
-            throw new Error('User not found')
+            throw new Error('id or password may be incorrect')
         }
 
         console.log(result)
@@ -39,7 +39,7 @@ loginRouter.post('/login', async (req, res) => {
             throw new Error('Invalid token')
         }
 
-        return res.status(200).json({"message": "Successfully logged in", "token": token})
+        return res.status(200).json({"message": "Successfully logged in", "token": token, role})
 
     }catch (err) {
         return res.status(400).json({error: err.message})

@@ -9,7 +9,6 @@ function removeSocket(espID) {
 }
 
 function getSocket(espID) {
-    console.log(EspToSocketID.get(espID));
     
     return EspToSocketID.get(espID);
 }

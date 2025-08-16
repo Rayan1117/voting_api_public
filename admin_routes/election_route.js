@@ -13,11 +13,16 @@ electionRoute.post('/create-election', async (req, res) => {
     try {
         const { candidates, electionName, configId } = req.body
 
+        console.log(typeof candidates, electionName, configId);
+        
+
+        console.log(electionName)
+
         await createElectionIfNotExist()
 
         const election_id = uuidV4()
 
-        const query = `INSERT INTO election(election_id, election_name, config_id, candidates)
+        const query = `INSERT INTO election (election_id, election_name, config_id, candidates)
                         VALUES(@e_id, @e_name, @config_id, @candidates)`
 
         await new db().execQuery(query, {
@@ -146,7 +151,6 @@ electionRoute.post("/end-election", async (req, res) => {
         const { electionId } = req.body
 
         console.log(electionId);
-
 
         const getQuery = "SELECT * FROM election WHERE election_id = @election_id"
 
