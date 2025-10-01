@@ -57,6 +57,9 @@ electionRoute.post("/start-election", async (req, res) => {
     try {
         const { electionId, espId } = req.body
 
+        console.log(espId);
+        
+
         if (!electionId) {
             throw new Error("election id field is required")
         }
@@ -83,7 +86,6 @@ electionRoute.post("/start-election", async (req, res) => {
 
         console.log(count);
 
-
         if (result.length === 0) {
             throw new Error("Election Not found")
         }
@@ -99,11 +101,17 @@ electionRoute.post("/start-election", async (req, res) => {
             throw new Error("this election has already ended")
         }
 
+        console.log(pin_bits);
+        
         const socket = getSocket(espId)
+        
 
         if (!socket) {
             throw new Error("socket for the esp id not found")
         }
+
+   
+            
 
         socket.emit("change-config", { pin_bits })
 
@@ -145,6 +153,64 @@ electionRoute.post("/start-election", async (req, res) => {
         return res.status(400).json({ "error": err.message })
     }
 });
+
+// Resume Election (after admin reconnect)
+electionRoute.post("/resume-election", async (req, res) => {
+    try {
+        const { electionId, espId } = req.body;
+
+        if (!electionId) {
+            throw new Error("election id field is required");
+        }
+
+        // Check if election is still running
+        const query = `
+            SELECT election.isCurrent, election.isEnd, election.config_id, config.pin_bits
+            FROM election 
+            LEFT JOIN config ON config.config_id = election.config_id 
+            WHERE election_id = @election_id
+        `;
+
+        const result = await new db().execQuery(query, {
+            "election_id": { type: sql.VarChar, value: electionId }
+        });
+
+        if (result.length === 0) {
+            throw new Error("Election not found");
+        }
+
+        const { isCurrent, isEnd, pin_bits } = result[0];
+
+        if (!isCurrent) {
+            throw new Error("Election is not currently running, please start it first.");
+        }
+        if (isEnd) {
+            throw new Error("This election has already ended");
+        }
+
+        // Ensure EVM socket is available
+        const socket = getSocket(espId);
+        if (!socket) {
+            throw new Error("socket for the esp id not found");
+        }
+
+        // Re-sync EVM with config (optional, in case of lost state)
+        socket.emit("change-config", { pin_bits });
+
+        // No need to wait for 'config-changed' again, because election already started in DB
+        // Just let admin resume
+        return res.json({
+            message: "Election resumed successfully",
+            electionId,
+            config: { pin_bits }
+        });
+
+    } catch (err) {
+        console.error("❌ Resume election error:", err.message);
+        return res.status(400).json({ error: err.message });
+    }
+});
+
 
 electionRoute.post("/end-election", async (req, res) => {
     try {

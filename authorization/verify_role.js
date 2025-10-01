@@ -1,14 +1,14 @@
-const {verifyToken} = require('./verify_token')
+const { verifyToken } = require('./verify_token')
 
-exports.verifyRole = function(requiredRole) {
-   return function (req, res, next)
-    {
+exports.verifyRole = function (requiredRole) {
+    return function (req, res, next) {
         try {
+            
             const header = req.headers['authorization'] ?? ''
 
-    if(!header){
-        throw new Error('authorization header is required')
-    }
+            if (!header) {
+                throw new Error('authorization header is required')
+            }
 
             if (!header.startsWith('Bearer ')) {
                 throw new Error("Not a valid bearer token")
@@ -20,42 +20,51 @@ exports.verifyRole = function(requiredRole) {
 
             let role = verifyToken(token).role
 
-            if(requiredRole === 'user|admin') {
+            if (requiredRole === 'user|admin') {
                 role = requiredRole
             }
 
             if (role !== requiredRole) {
                 throw new Error(`No other than ${requiredRole} can access this route`)
             }
-            
+
             next()
 
         } catch (err) {
-            return res.status(400).json({error: err.message})
+            return res.status(400).json({ error: err.message })
         }
     }
 }
 
-exports.verifySocketRole = function(requiredRole) {
-    return function (socket, next) {
-        const token = socket.handshake.auth.token
-        console.log("token : ", token);
-        
-        if (!token) {
-            return next(new Error("NO_TOKEN_FOUND"))
-        }
-        const payload = verifyToken(token.split(" ")[1])
+exports.verifySocketRole = function (requiredRole) {
+  return function (socket, next) {
+    console.log("hi");
+    
+    const authHeader =
+      socket.handshake.auth?.token || // v4 clients (browser)
+      socket.handshake.headers["authorization"] || // ESP headers
+      socket.handshake.query?.token; // <--- add query token support
 
-        if(requiredRole === "user|admin") {
-            payload.role = requiredRole
-        }
+    console.log("Auth Header or Query Token:", authHeader);
 
-        console.log(payload.role);
+    if (!authHeader) return next(new Error("NO_TOKEN_FOUND"));
 
-        if (payload.role === requiredRole) {
-            
-            return next()
-        }
-        return next(new Error("INVALID_TOKEN"))
+    // If query param provided, don’t split by space
+    const jwt = authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;
+
+    let payload;
+    try {
+      payload = verifyToken(jwt);
+    } catch (err) {
+      return next(new Error("INVALID_TOKEN"));
     }
-}
+
+    console.log("Payload role:", payload.role);
+
+    if (requiredRole.includes(payload.role)) {
+      return next();
+    }
+
+    return next(new Error("INVALID_TOKEN"));
+  };
+};

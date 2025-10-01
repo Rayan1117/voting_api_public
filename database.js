@@ -1,7 +1,6 @@
 const sql = require('mssql');
 
 class Database {
-    
     #dbConfig = {
         user: 'MZCET',
         password: 'MZCET@1234',

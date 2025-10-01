@@ -16,14 +16,14 @@ const userConfigRoute = require('./user_routes/config_route');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-    allowEIO4: true,
+    allowEIO3: true,
     cors: {
         origin: ["https://hoppscotch.io", "http://localhost:3000"],
         methods: ["GET", "POST"],
     }
 })
 
-adminSocketContext(io.of("/admin-socket-route"), io)
+adminSocketContext(io.of("/"), io)
 userSocketContext(io.of("/live-election"))
 
 app.get('/test', (req, res) => {

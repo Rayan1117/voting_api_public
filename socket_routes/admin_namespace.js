@@ -1,98 +1,134 @@
-const { addSocket, removeSocket, getSocket } = require('../ProcessMemory/espToSocketMap');
+const { 
+    addSocket, 
+    removeSocket 
+} = require('../ProcessMemory/espToSocketMap');
+
 const { voteCast } = require('../admin_routes/vote_cast');
 const { addVoteIndex, getVoteIndex } = require('../ProcessMemory/voteMemo');
-const { isInitialized, arePresent, addPresence, resetPresence } = require("../ProcessMemory/presenceMap");
-const { verifyToken } = require('../authorization/verify_token');
+
+const { 
+    isInitialized, 
+    arePresent, 
+    addPresence, 
+    resetPresence,
+    setVoteState,
+    resetVoteState,
+    getVoteState
+} = require("../ProcessMemory/presenceMap");
+
 const { verifySocketRole } = require('../authorization/verify_role');
 
-exports.adminSocketContext = function (adminSocket, io) {
 
-    adminSocket.use(verifySocketRole("admin"))
+exports.adminSocketContext = function (adminSocket, io) {
+    
+    // middleware: only admins allowed
+    adminSocket.use(verifySocketRole("admin"));
 
     adminSocket.on('connection', (socket) => {
-        console.log(socket.id);
+        console.log("Admin connected:", socket.id);
 
-        socket.on("post-connection", (data) => {
-            console.log(data.espId);
-            const espID = data.espId;
-            addSocket(espID, socket);
+        // when admin app connects to a specific esp
+        socket.on("post-connection", ({ espId }) => {
+            console.log("post-connection -> espId:", espId);
+
+            addSocket(espId, socket);
+
+            // ensure presence map initialized
+            isInitialized(espId);
+
+            // 🔄 check if there’s a pending vote state
+            const state = getVoteState(espId);
+            if (state?.selected) {
+                console.log("Restoring vote state for esp:", espId, state);
+                socket.emit("vote-selected", state.index);
+            }
         });
 
+        // debug message pipe
         socket.on("message", (data) => {
-            console.log(data);
-            io.of("/live-election").to("election").emit("vote-updated", { voteIndex: 6 })
+            console.log("message:", data);
+            io.of("/live-election").to("election").emit("vote-updated", { voteIndex: 6 });
         });
 
         socket.on('pre-disconnect', (data) => {
-            removeSocket(JSON.parse(data).id);
+            try {
+                const { id } = JSON.parse(data);
+                removeSocket(id);
+            } catch (e) {
+                console.log("pre-disconnect parse failed:", e.message);
+            }
         });
 
         socket.on('disconnect', () => {
-            console.log('User disconnected:', socket.id);
+            console.log('Admin disconnected:', socket.id);
         });
 
-        socket.on('start-election', (data) => {
-            const { espId } = data
-            console.log(`Election ${espId} started`);
+        // election start
+        socket.on('start-election', ({ espId }) => {
+            console.log(`Election started for ${espId}`);
 
             socket.join(espId);
-
             adminSocket.to(espId).emit('election-started', espId);
         });
 
+        // cast a vote
         socket.on('cast-vote', async ({ espId, electionId }) => {
             try {
                 const voteIndex = getVoteIndex(espId);
                 console.log(`Vote received for election ${electionId} - index ${voteIndex}`);
 
-                await voteCast(electionId, espId, voteIndex).catch(err => { throw err });
+                await voteCast(electionId, espId, voteIndex);
 
-                io.of("/live-election").to("election").emit("vote-updated", { voteIndex })
+                // reset vote state after cast
+                resetVoteState(espId);
 
+                io.of("/live-election").to("election").emit("vote-updated", { voteIndex });
                 adminSocket.to(espId).emit('vote-updated', { voteIndex });
             } catch (err) {
-                console.log(err.message);
+                console.log("cast-vote error:", err.message);
             }
         });
 
-        socket.on("present", (data) => {
-            const { room, role } = data;
-            isInitialized(room, role)
-            console.log(room, role + " role bro")
-            addPresence(room, role)
+        // presence check
+        socket.on("present", ({ room, role }) => {
+            isInitialized(room);
+            addPresence(room, role);
+            console.log(`${role} present in ${room}`);
         });
 
+        // vote selection
         socket.on("vote-selected", async ({ espId, voteIndex }) => {
             try {
-                console.log("here");
-
-                console.log(espId, voteIndex);
+                console.log("vote-selected:", espId, voteIndex);
 
                 adminSocket.to(espId).emit("check-presence", espId);
 
                 setTimeout(function () {
-                    console.log("executing")
+                    console.log("vote-selected timeout check for", espId);
+
                     if (!arePresent(espId)) {
-                        console.log("not present");
+                        console.log("presence failed -> reset");
                         resetPresence(espId);
-                        adminSocket.to(espId).emit("reset-selected", "reset request")
-                        console.log("EVM or App got disconnected from websocket");
-                        return
+                        resetVoteState(espId);
+                        adminSocket.to(espId).emit("reset-selected", "reset request");
+                        return;
                     }
 
+                    // ✅ store vote index into memory
                     addVoteIndex(espId, voteIndex);
+                    setVoteState(espId, voteIndex);
 
-                    resetPresence(espId)
+                    resetPresence(espId);
 
                     adminSocket.to(espId).emit("vote-selected", voteIndex);
-                    console.log("emitted")
-                }, 10000)
-
+                    console.log("vote-selected confirmed + emitted");
+                }, 3000);
 
             } catch (err) {
                 resetPresence(espId);
-                console.log(err.message);
+                resetVoteState(espId);
+                console.log("vote-selected error:", err.message);
             }
         });
     });
-}
+};

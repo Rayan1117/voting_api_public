@@ -8,11 +8,11 @@ startupRoute.get('/get-config',async function (req, res) {
 
         const query = "SELECT pin_bits FROM config JOIN election ON election.config_id = config.config_id WHERE election.isCurrent = 1"
 
-        const {pin_bits} = await new db().execQuery(query).then(result => result[0])
+        const pin_bits = await new db().execQuery(query).then(result => result[0])
 
         console.log(pin_bits)
 
-        if(!pin_bits) {
+        if(!pin_bits?.pin_bits) {
             throw new  Error('No results found')
         }
 
