@@ -1,50 +1,48 @@
-const { 
-    addSocket, 
-    removeSocket 
-} = require('../ProcessMemory/espToSocketMap');
-
+const { addSocket, removeSocket } = require('../ProcessMemory/espToSocketMap');
 const { voteCast } = require('../admin_routes/vote_cast');
-const { addVoteIndex, getVoteIndex } = require('../ProcessMemory/voteMemo');
-
-const { 
-    isInitialized, 
-    arePresent, 
-    addPresence, 
+const { getSocket } = require('../ProcessMemory/espToSocketMap');
+const {
+    isInitialized,
+    arePresent,
+    addPresence,
     resetPresence,
     setVoteState,
     resetVoteState,
     getVoteState
 } = require("../ProcessMemory/presenceMap");
-
 const { verifySocketRole } = require('../authorization/verify_role');
 
-
 exports.adminSocketContext = function (adminSocket, io) {
-    
-    // middleware: only admins allowed
+    // Only admins allowed
     adminSocket.use(verifySocketRole("admin"));
 
     adminSocket.on('connection', (socket) => {
         console.log("Admin connected:", socket.id);
 
-        // when admin app connects to a specific esp
-        socket.on("post-connection", ({ espId }) => {
+        // When admin app connects to a specific ESP
+        socket.on("post-connection", ({ espId, role }) => {
             console.log("post-connection -> espId:", espId);
+            if (role == "esp") {
+                addSocket(espId, socket);
+                console.log("esp socket added for ", espId);
+            }
 
-            addSocket(espId, socket);
+            socket.join(espId);
+            console.log(role, " of ", espId, " joined room");
 
-            // ensure presence map initialized
+
+            // Initialize presence/vote map
             isInitialized(espId);
 
-            // 🔄 check if there’s a pending vote state
+            // Restore previous vote state if any
             const state = getVoteState(espId);
             if (state?.selected) {
                 console.log("Restoring vote state for esp:", espId, state);
-                socket.emit("vote-selected", state.index);
+                socket.emit("vote-selected", state.votes || state.index);
             }
         });
 
-        // debug message pipe
+        // Debug
         socket.on("message", (data) => {
             console.log("message:", data);
             io.of("/live-election").to("election").emit("vote-updated", { voteIndex: 6 });
@@ -63,64 +61,66 @@ exports.adminSocketContext = function (adminSocket, io) {
             console.log('Admin disconnected:', socket.id);
         });
 
-        // election start
-        socket.on('start-election', ({ espId }) => {
-            console.log(`Election started for ${espId}`);
-
-            socket.join(espId);
-            adminSocket.to(espId).emit('election-started', espId);
-        });
-
-        // cast a vote
+        // Cast a vote to DB
         socket.on('cast-vote', async ({ espId, electionId }) => {
             try {
-                const voteIndex = getVoteIndex(espId);
-                console.log(`Vote received for election ${electionId} - index ${voteIndex}`);
+                const votes = getVoteState(espId)?.votes;
+                if (!votes || Object.keys(votes).length === 0) throw new Error("votes not found");
 
-                await voteCast(electionId, espId, voteIndex);
+                for (let group in votes) {
+                    await voteCast(electionId, espId, group, votes[group]);
+                }
 
-                // reset vote state after cast
                 resetVoteState(espId);
 
-                io.of("/live-election").to("election").emit("vote-updated", { voteIndex });
-                adminSocket.to(espId).emit('vote-updated', { voteIndex });
+                // Instead of fetching candidates again, only emit what changed
+                const payload = {
+                    electionId,
+                    espId,
+                    updatedVotes: votes   // e.g. { "0": 1, "2": 1 } means incremented index 0 & 2
+                };
+
+                io.of("/live-election").to("election").emit("vote-updated", payload);
+                socket.to(espId).emit("vote-updated")
             } catch (err) {
                 console.log("cast-vote error:", err.message);
             }
-        });
+        }); 
 
-        // presence check
+        // Presence check
         socket.on("present", ({ room, role }) => {
+            console.log(room, role);
+
             isInitialized(room);
             addPresence(room, role);
             console.log(`${role} present in ${room}`);
         });
 
-        // vote selection
-        socket.on("vote-selected", async ({ espId, voteIndex }) => {
+        // Vote-selected from ESP
+        socket.on("vote-selected", async ({ espId, votes }) => {
             try {
-                console.log("vote-selected:", espId, voteIndex);
+                console.log("vote-selected:", espId, votes);
 
+                // ✅ Store votes immediately
+                const voteState = { selected: true, votes };
+                setVoteState(espId, votes);
+
+                // Ask ESP to confirm presence
                 adminSocket.to(espId).emit("check-presence", espId);
 
-                setTimeout(function () {
-                    console.log("vote-selected timeout check for", espId);
 
+                setTimeout(() => {
                     if (!arePresent(espId)) {
-                        console.log("presence failed -> reset");
+                        console.log("Presence failed -> reset");
                         resetPresence(espId);
                         resetVoteState(espId);
                         adminSocket.to(espId).emit("reset-selected", "reset request");
                         return;
                     }
 
-                    // ✅ store vote index into memory
-                    addVoteIndex(espId, voteIndex);
-                    setVoteState(espId, voteIndex);
-
-                    resetPresence(espId);
-
-                    adminSocket.to(espId).emit("vote-selected", voteIndex);
+                    // Broadcast vote-selected
+                    adminSocket.to(espId).emit("vote-selected", votes);
+                    io.of("/live-election").to("election").emit("vote-updated", { espId, votes });
                     console.log("vote-selected confirmed + emitted");
                 }, 3000);
 

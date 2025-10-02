@@ -51,10 +51,13 @@ exports.verifySocketRole = function (requiredRole) {
 
     // If query param provided, don’t split by space
     const jwt = authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;
-
+    
     let payload;
     try {
+      
       payload = verifyToken(jwt);
+      console.log(payload);
+      
     } catch (err) {
       return next(new Error("INVALID_TOKEN"));
     }

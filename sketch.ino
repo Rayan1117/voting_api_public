@@ -1,258 +1,231 @@
 #include <WiFi.h>
 #include <SocketIoClient.h>
-#include <ArduinoJson.h> // Ensure you have this library for JSON parsing
+#include <ArduinoJson.h>
 #include <HTTPClient.h>
 
-const char* ssid = "ARUN";                // Replace with your network SSID
-const char* password = "12345678";      // Replace with your network password
-const char* host = "10.201.190.229";        // Replace with your server IP
+// =======================
+// WiFi Config
+// =======================
+const char* ssid = "ARUN";
+const char* password = "12345678";
+
+// =======================
+// Server Config
+// =======================
+const char* host = "10.68.158.62";
+const int port = 5000;
+
+// =======================
+// Device + Auth
+// =======================
+const String EspId = "NVEM1234";
+const char* jwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NTk0MDQzNjcsImV4cCI6MTc1OTQ5MDc2N30.L6H3hGjkagsCqr5-VxlpuRAuAdO-6VJ5Vw1swprHKJE";
 
 SocketIoClient webSocket;
 
-const String EspId = "NVEM1234";
-// Define the size of the pinsstring array
+// =======================
+// EVM Buttons/LEDs
+// =======================
 const int NUM_PINS = 8;
+int buttonPins[NUM_PINS] = {4, 5, 12, 13, 14, 27, 26, 25};
+int ledPins[NUM_PINS]    = {15, 33, 18, 19, 21, 22, 23, 32};
 
-int currentPins[NUM_PINS] = {0, 0, 0, 0, 0, 0, 0, 0};
+int currentPins[NUM_PINS] = {0,0,0,0,0,0,0,0};
+int groupMap[NUM_PINS]     = {0,0,0,0,0,0,0,0};
+int groupVotes[4]          = {-1,-1,-1,-1};
+int maxGroup                = 0;
 
-int selectedCandidate;
+int selectedCandidate = -1;
+int currentGroup = 1;
 
-bool buttonPressed = false;
+// =======================
+// Utility Functions
+// =======================
+void resetVoteCycle() {
+    for (int i=0;i<NUM_PINS;i++) digitalWrite(ledPins[i], LOW);
+    for (int i=0;i<4;i++) groupVotes[i] = -1;
+    selectedCandidate = -1;
+    currentGroup = 1;
 
-const int Button1 = 4;
-const int Button2 = 5;
-const int Button3 = 12;
-const int Button4 = 13;
-const int Button5 = 14;
-const int Button6 = 27;
-const int Button7 = 26;
-const int Button8 = 25;
-const int Button1LedPin = 15;
-const int Button2LedPin = 33;
-const int Button3LedPin = 18;
-const int Button4LedPin = 19;
-const int Button5LedPin = 21;
-const int Button6LedPin = 22;
-const int Button7LedPin = 23;
-const int Button8LedPin = 32;
-
-void getStartupConfig(const char* espId) {
-  HTTPClient http;
-
-  String serverUrl = "http://10.201.190.229:5000/startup/get-config?espId=" + String(espId);
-
-  http.begin(serverUrl); // Starts HTTP connection
-  int httpCode = http.GET(); // Sends the GET request
-
-  if (httpCode == HTTP_CODE_OK) {
-    String payload = http.getString();
-    Serial.println("Config received: ");
-    Serial.println(payload);
-    // Parse JSON and apply config
-  }
-  else if(httpCode == 400) {
-    Serial.println("There is no ongoing election");
-  } else {
-    Serial.printf("Failed to get config, error: %s\n", http.errorToString(httpCode).c_str());
-  }
-
-  http.end();
+    // Enable only first group buttons
+    for (int i=0;i<NUM_PINS;i++) {
+        if(currentPins[i]==1 && groupMap[i]==currentGroup) pinMode(buttonPins[i], INPUT_PULLUP);
+        else pinMode(buttonPins[i], INPUT);
+    }
 }
 
-void event(const char* payload, size_t length) {
-    Serial.printf("Message received: %s\n", payload);
-
-    // Parse the JSON payload
-    DynamicJsonDocument doc(1024);
-    DeserializationError error = deserializeJson(doc, payload);
-    if (error) {
-        Serial.println("Failed to parse JSON!");
-        return;
+void voteCycleComplete() {
+    DynamicJsonDocument doc(256);
+    doc["espId"] = EspId;
+    JsonObject votes = doc.createNestedObject("votes");
+    for (int g=1; g<=maxGroup; g++) {
+        if(groupVotes[g-1] != -1) votes[String(g)] = groupVotes[g-1];
     }
-
-    // Check if the payload contains pinsstring
-    if (!doc.containsKey("pin_bits")) {
-        Serial.println("pinsstring not found in the message.");
-        return;
-    }
-
-    // Get the pinsstring from the payload
-    const char* pinsString = doc["pin_bits"];
-    // Parse the pinsstring
-    DynamicJsonDocument pinsDoc(1024);
-    DeserializationError pinsError = deserializeJson(pinsDoc, pinsString);
-    if (pinsError) {
-        Serial.println("Failed to parse pinsstring!");
-        return;
-    }
-    // Update currentPins with the received data
-    for (int i = 0; i < NUM_PINS; i++) {
-        currentPins[i] = pinsDoc[i]; // Fill currentPins with parsed data
-    }
-
-        // If they are different, update oldPins with currentPins
-        Serial.println("Configuration has changed. Updating old pins.");
-
-        // Print the updated old pins and which buttons are enabled
-        Serial.print("Updated pins: ");
-        for (int i = 0; i < NUM_PINS; i++) {
-            Serial.print(currentPins[i]);
-            Serial.print(" ");
-        }
-        Serial.println(); // New line after printing all old pins
-
-        Serial.print("Enabled buttons: ");
-        for (int i = 0; i < NUM_PINS; i++) {
-            // Check the digital state to print which buttons are actually enabled
-            if (currentPins[i] ==  1) {
-                Serial.print("Button ");
-                Serial.print(i + 1); // Print button number (1 to NUM_PINS)
-                Serial.print(" ");
-            }
-        }
-        Serial.println();
-      //String changed ="changed successfully";
-        webSocket.emit("config-changed", "{\"message\":\"changed successfully\"}");
-        webSocket.on("election-started", startElection);
-        webSocket.emit("start-election", "{\"espId\":\"NVEM1234\"}");
-        webSocket.on("vote-updated", voteCasted);
-        webSocket.on("reset-selected", voteCasted);
-        webSocket.on("check-presence", registerPresence);
+    String json;
+    serializeJson(doc,json);
+    webSocket.emit("vote-selected", json.c_str());
+    Serial.println("✅ Vote cycle complete - vote-selected emitted");
 }
 
-void registerPresence(const char* payload, size _t length) {
-    Serial.println("check-presence");
-    webSocket.emit("present", "{\"room\":\"NVEM1234\", \"role\":\"esp\"}");
-}
+// =======================
+// Socket Event Handlers
+// =======================
 
-void startElection(const char* payload, size_t length) {
-        delay(2000);
-        selectedCandidate = -1;
-    }
-
-void voteCasted(const char* payload, size_t length) {
-  Serial.println("Reset the button to work again");
-  selectedCandidate = -1;
-
-  // Manually set all LED pins to LOW
-  digitalWrite(Button1LedPin, LOW);
-  digitalWrite(Button2LedPin, LOW);
-  digitalWrite(Button3LedPin, LOW);
-  digitalWrite(Button4LedPin, LOW);
-  digitalWrite(Button5LedPin, LOW);
-  digitalWrite(Button6LedPin, LOW);
-  digitalWrite(Button7LedPin, LOW);
-  digitalWrite(Button8LedPin, LOW);
+void voteReset(const char* payload, size_t length) {
+    Serial.println("Vote reset triggered.");
+    resetVoteCycle();
 }
 
 void onConnect(const char* payload, size_t length) {
-    Serial.println("Connected to server");
+    Serial.println("✅ Connected to server");
+    String msg = "{\"espId\":\"" + EspId + "\", \"role\":\"esp\"}";
+    webSocket.emit("post-connection", msg.c_str());
+    Serial.println("🟢 post-connection emitted");
 }
 
 void onDisconnect(const char* payload, size_t length) {
-    Serial.println("Disconnected from server");
+    Serial.println("⚠️ Disconnected from server");
 }
 
-int selected_candidate = -1;
+void onChangeConfig(const char* payload, size_t length) {
+    Serial.println("⚙️ Config change received:");
+    Serial.println(payload);
 
+    DynamicJsonDocument doc(1024);
+    DeserializationError err = deserializeJson(doc, payload);
+    if (err) { Serial.println("Failed to parse JSON"); return; }
+
+    if (!doc.containsKey("pin_bits") || !doc.containsKey("group_pins")) return;
+
+    JsonArray pinsArray = doc["pin_bits"].as<JsonArray>();
+    JsonArray groupArray = doc["group_pins"].as<JsonArray>();
+
+    maxGroup = 0;
+    for (int i=0;i<NUM_PINS;i++) {
+        currentPins[i] = pinsArray[i];
+        groupMap[i] = groupArray[i];
+        if (groupArray[i] > maxGroup) maxGroup = groupArray[i];
+    }
+
+    Serial.print("Max group: "); Serial.println(maxGroup);
+    resetVoteCycle();
+
+    webSocket.emit("config-changed", "{\"espId\":\"NVEM1234\"}");
+}
+
+// =======================
+// Setup + Loop
+// =======================
 void setup() {
     Serial.begin(115200);
     delay(1000);
 
-    pinMode(Button1,INPUT_PULLUP);
-    pinMode(Button2,INPUT_PULLUP);
-    pinMode(Button3,INPUT_PULLUP);
-    pinMode(Button4,INPUT_PULLUP);
-    pinMode(Button5,INPUT_PULLUP);
-    pinMode(Button6,INPUT_PULLUP);
-    pinMode(Button7,INPUT_PULLUP);
-    pinMode(Button8,INPUT_PULLUP);
+    // Initialize LEDs
+    for (int i=0;i<NUM_PINS;i++) pinMode(ledPins[i], OUTPUT);
+    resetVoteCycle();
 
-    pinMode(Button1LedPin,OUTPUT);
-    pinMode(Button2LedPin,OUTPUT);
-    pinMode(Button3LedPin,OUTPUT);
-    pinMode(Button4LedPin,OUTPUT);
-    pinMode(Button5LedPin,OUTPUT);
-    pinMode(Button6LedPin,OUTPUT);
-    pinMode(Button7LedPin,OUTPUT);
-    pinMode(Button8LedPin,OUTPUT);
-
-    // Connect to Wi-Fi
-    WiFi.begin(ssid, password);
-    Serial.print("Connecting to WiFi");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
+    // Connect Wi-Fi
+    WiFi.begin(ssid,password);
+    Serial.print("Connecting WiFi");
+    while(WiFi.status()!=WL_CONNECTED){ delay(500); Serial.print("."); }
+    Serial.println("\n✅ WiFi connected");
     Serial.println(WiFi.localIP());
-    Serial.println("Connected to WiFi");
 
+    // Connect Socket.IO (EIO3)
+    String url = "/socket.io/?EIO=3&transport=websocket&token=" + String(jwtToken);
+    webSocket.begin(host,port,url.c_str());
 
-    getStartupConfig(EspId.c_str());
-
-    // Connect to WebSocket
-    webSocket.begin(host, 5000, "/socket.io/?EIO=3&transport=websocket");
-    webSocket.emit("post-connection", "{\"espId\":\"NVEM1234\"}");  // Correctly serialized JSON string
-    webSocket.on("change-config", event); // Event listener for 'data' messages
-
-    // Set up event listeners for connection and disconnection
+    // Socket event listeners
     webSocket.on("connect", onConnect);
     webSocket.on("disconnect", onDisconnect);
-
+    webSocket.on("change-config", onChangeConfig);
+    webSocket.on("vote-updated", voteReset);
+    webSocket.on("reset-selected", voteReset);
 }
 
 void loop() {
     webSocket.loop();
-    // Check button presses and update selectedCandidate
+
+    // Handle button click for current group (without loop)
     if (selectedCandidate == -1) {
-        if (digitalRead(Button1) == LOW) {
-            selectedCandidate = 1;
-            buttonPressed = true;
-            digitalWrite(Button1LedPin, HIGH);
-            Serial.println("Button1 pressed");
-        } else if (digitalRead(Button2) == LOW) {
-            selectedCandidate = 2;
-            buttonPressed = true;
-            digitalWrite(Button2LedPin, HIGH);
-            Serial.println("Button2 pressed");
-        } else if (digitalRead(Button3) == LOW) {
-            selectedCandidate = 3;
-            buttonPressed = true;
-            digitalWrite(Button3LedPin, HIGH);
-            Serial.println("Button3 pressed");
-        } else if (digitalRead(Button4) == LOW) {
-            selectedCandidate = 4;
-            buttonPressed = true;
-            digitalWrite(Button4LedPin, HIGH);
-            Serial.println("Button4 pressed");
-        } else if (digitalRead(Button5) == LOW) {
-            selectedCandidate = 5;
-            buttonPressed = true;
-            digitalWrite(Button5LedPin, HIGH);
-            Serial.println("Button5 pressed");
-        } else if (digitalRead(Button6) == LOW) {
-            selectedCandidate = 6;
-            buttonPressed = true;
-            digitalWrite(Button6LedPin, HIGH);
-            Serial.println("Button6 pressed");
-        } else if (digitalRead(Button7) == LOW) {
-            selectedCandidate = 7;
-            buttonPressed = true;
-            digitalWrite(Button7LedPin, HIGH);
-            Serial.println("Button7 pressed");
-        } else if (digitalRead(Button8) == LOW) {
-            selectedCandidate = 8;
-            buttonPressed = true;
-            digitalWrite(Button8LedPin, HIGH);
-            Serial.println("Button8 pressed");
+        if (currentPins[0]==1 && groupMap[0]==currentGroup && digitalRead(buttonPins[0])==LOW) { 
+            selectedCandidate=0; 
+            digitalWrite(ledPins[0], HIGH); 
+            groupVotes[currentGroup-1]=0; 
+            Serial.println("Button 1 pressed"); 
+            webSocket.emit("present", "{\"room\":\"NVEM1234\",\"role\":\"esp\"}"); 
+            Serial.println("🟢 Presence emitted"); 
+        }
+        else if (currentPins[1]==1 && groupMap[1]==currentGroup && digitalRead(buttonPins[1])==LOW) { 
+            selectedCandidate=1; 
+            digitalWrite(ledPins[1], HIGH); 
+            groupVotes[currentGroup-1]=1; 
+            Serial.println("Button 2 pressed"); 
+            webSocket.emit("present", "{\"room\":\"NVEM1234\",\"role\":\"esp\"}"); 
+            Serial.println("🟢 Presence emitted"); 
+        }
+        else if (currentPins[2]==1 && groupMap[2]==currentGroup && digitalRead(buttonPins[2])==LOW) { 
+            selectedCandidate=2; 
+            digitalWrite(ledPins[2], HIGH); 
+            groupVotes[currentGroup-1]=2; 
+            Serial.println("Button 3 pressed"); 
+            webSocket.emit("present", "{\"room\":\"NVEM1234\",\"role\":\"esp\"}"); 
+            Serial.println("🟢 Presence emitted"); 
+        }
+        else if (currentPins[3]==1 && groupMap[3]==currentGroup && digitalRead(buttonPins[3])==LOW) { 
+            selectedCandidate=3; 
+            digitalWrite(ledPins[3], HIGH); 
+            groupVotes[currentGroup-1]=3; 
+            Serial.println("Button 4 pressed"); 
+            webSocket.emit("present", "{\"room\":\"NVEM1234\",\"role\":\"esp\"}"); 
+            Serial.println("🟢 Presence emitted"); 
+        }
+        else if (currentPins[4]==1 && groupMap[4]==currentGroup && digitalRead(buttonPins[4])==LOW) { 
+            selectedCandidate=4; 
+            digitalWrite(ledPins[4], HIGH); 
+            groupVotes[currentGroup-1]=4; 
+            Serial.println("Button 5 pressed"); 
+            webSocket.emit("present", "{\"room\":\"NVEM1234\",\"role\":\"esp\"}"); 
+            Serial.println("🟢 Presence emitted"); 
+        }
+        else if (currentPins[5]==1 && groupMap[5]==currentGroup && digitalRead(buttonPins[5])==LOW) { 
+            selectedCandidate=5; 
+            digitalWrite(ledPins[5], HIGH); 
+            groupVotes[currentGroup-1]=5; 
+            Serial.println("Button 6 pressed"); 
+            webSocket.emit("present", "{\"room\":\"NVEM1234\",\"role\":\"esp\"}"); 
+            Serial.println("🟢 Presence emitted"); 
+        }
+        else if (currentPins[6]==1 && groupMap[6]==currentGroup && digitalRead(buttonPins[6])==LOW) { 
+            selectedCandidate=6; 
+            digitalWrite(ledPins[6], HIGH); 
+            groupVotes[currentGroup-1]=6; 
+            Serial.println("Button 7 pressed"); 
+            webSocket.emit("present", "{\"room\":\"NVEM1234\",\"role\":\"esp\"}"); 
+            Serial.println("🟢 Presence emitted"); 
+        }
+        else if (currentPins[7]==1 && groupMap[7]==currentGroup && digitalRead(buttonPins[7])==LOW) { 
+            selectedCandidate=7; 
+            digitalWrite(ledPins[7], HIGH); 
+            groupVotes[currentGroup-1]=7; 
+            Serial.println("Button 8 pressed"); 
+            webSocket.emit("present", "{\"room\":\"NVEM1234\",\"role\":\"esp\"}"); 
+            Serial.println("🟢 Presence emitted"); 
         }
     }
 
-    // Emit the vote once a candidate is selected
-    if (selectedCandidate != -1 && buttonPressed == true) {
-        String voteData = "{\"espId\":\"NVEM1234\",\"voteIndex\":\"" + String(selectedCandidate - 1) + "\"}";
-        webSocket.emit("vote-selected", voteData.c_str()); // Emit the selected vote to server
-        buttonPressed = false;
-    }
+    // After pressing a button, move to next group
+    if (selectedCandidate != -1) {
+        currentGroup++;
+        selectedCandidate = -1;
 
+        // Enable only next group buttons
+        for (int i=0;i<NUM_PINS;i++) {
+            if(currentPins[i]==1 && groupMap[i]==currentGroup) pinMode(buttonPins[i], INPUT_PULLUP);
+            else pinMode(buttonPins[i], INPUT);
+        }
+
+        // If all groups selected, emit vote
+        if (currentGroup > maxGroup) voteCycleComplete();
+    }
 }

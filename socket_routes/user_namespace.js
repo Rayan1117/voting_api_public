@@ -10,7 +10,6 @@ exports.userSocketContext = function (userSocket) {
         socket.on("join-election-room", (_) => {
             socket.join("election")
             console.log("joined room");
-            
         })
 
         socket.on("vote-updated", (data) => {

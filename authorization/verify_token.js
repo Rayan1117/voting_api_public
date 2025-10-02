@@ -19,7 +19,6 @@ tokenVerifyRoute.post("/verify-token", (req, res) => {
 exports.tokenVerifyRoute = tokenVerifyRoute
 
 exports.verifyToken = function (token) {
-    console.log(token);
     
     return jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if (err) {

@@ -5,7 +5,7 @@ const createElectionIfNotExist = require('../services/create_election');
 const sql = require('mssql');
 const db = require('../database');
 const { getSocket } = require('../ProcessMemory/espToSocketMap');
-const {verifyRole} = require("../authorization/verify_role");
+const { verifyRole } = require("../authorization/verify_role");
 
 electionRoute.use(verifyRole("admin"))
 
@@ -14,7 +14,7 @@ electionRoute.post('/create-election', async (req, res) => {
         const { candidates, electionName, configId } = req.body
 
         console.log(typeof candidates, electionName, configId);
-        
+
 
         console.log(electionName)
 
@@ -57,9 +57,6 @@ electionRoute.post("/start-election", async (req, res) => {
     try {
         const { electionId, espId } = req.body
 
-        console.log(espId);
-        
-
         if (!electionId) {
             throw new Error("election id field is required")
         }
@@ -75,16 +72,11 @@ electionRoute.post("/start-election", async (req, res) => {
             }
         })
 
-        console.log(result[0]);
-
-
         if (result[0]["config_id"] === null) {
             throw new Error("set the configurations before starting election")
         }
 
         const count = await new db().execQuery(countQuery).then(data => data[0]['count'])
-
-        console.log(count);
 
         if (result.length === 0) {
             throw new Error("Election Not found")
@@ -101,19 +93,16 @@ electionRoute.post("/start-election", async (req, res) => {
             throw new Error("this election has already ended")
         }
 
-        console.log(pin_bits);
-        
         const socket = getSocket(espId)
-        
 
         if (!socket) {
             throw new Error("socket for the esp id not found")
         }
 
-   
-            
-
-        socket.emit("change-config", { pin_bits })
+        socket.emit("change-config", {
+            pin_bits: JSON.parse(result[0].pin_bits),
+            group_pins: JSON.parse(result[0].group_pins)
+        });
 
 
         const timeout = setTimeout(() => {
@@ -133,7 +122,7 @@ electionRoute.post("/start-election", async (req, res) => {
                         "value": electionId
                     }
                 });
-                
+
                 startVoteQuery = "INSERT INTO vote_counts(election_id) VALUES(@election_id)"
 
                 await new db().execQuery(startVoteQuery, {
@@ -159,13 +148,15 @@ electionRoute.post("/resume-election", async (req, res) => {
     try {
         const { electionId, espId } = req.body;
 
+        console.log(req.body);
+        
         if (!electionId) {
             throw new Error("election id field is required");
         }
 
         // Check if election is still running
         const query = `
-            SELECT election.isCurrent, election.isEnd, election.config_id, config.pin_bits
+            SELECT election.isCurrent, election.isEnd, election.config_id, config.pin_bits, config.group_pins
             FROM election 
             LEFT JOIN config ON config.config_id = election.config_id 
             WHERE election_id = @election_id
@@ -194,15 +185,25 @@ electionRoute.post("/resume-election", async (req, res) => {
             throw new Error("socket for the esp id not found");
         }
 
-        // Re-sync EVM with config (optional, in case of lost state)
-        socket.emit("change-config", { pin_bits });
+        console.log(result);
 
-        // No need to wait for 'config-changed' again, because election already started in DB
-        // Just let admin resume
-        return res.json({
-            message: "Election resumed successfully",
-            electionId,
-            config: { pin_bits }
+        // Re-sync EVM with config (optional, in case of lost state)
+        socket.emit("change-config", {
+            pin_bits: JSON.parse(result[0].pin_bits),
+            group_pins: JSON.parse(result[0].group_pins)
+        });
+
+        const timeout = setTimeout(() => {
+            return res.status(408).json({ error: "Timed out waiting for ESP confirmation" });
+        }, 10000);
+
+        socket.once("config-changed", () => {
+            clearTimeout(timeout);
+            return res.json({
+                message: "Election resumed successfully",
+                electionId,
+                config: { pin_bits: JSON.parse(result[0].pin_bits) }
+            });
         });
 
     } catch (err) {
@@ -214,7 +215,12 @@ electionRoute.post("/resume-election", async (req, res) => {
 
 electionRoute.post("/end-election", async (req, res) => {
     try {
+        console.log(req.query);
+        
         const { electionId } = req.body
+
+        console.log(electionId);
+        
 
         console.log(electionId);
 
@@ -231,7 +237,7 @@ electionRoute.post("/end-election", async (req, res) => {
             throw new Error("this is not an ongoing election")
         }
 
-        const query = "UPDATE election SET isEnd = 1 WHERE election_id = @election_id"
+        const query = "UPDATE election SET isEnd = 1, isCurrent = 0 WHERE election_id = @election_id"
 
         await new db().execQuery(query, {
             "election_id": {
