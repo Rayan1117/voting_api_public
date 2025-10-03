@@ -12,6 +12,8 @@ function addPresence(room, role) {
 
 function resetPresence(room) {
     const roomRef = presenceMap.get(room);
+    console.log("room ref: ",roomRef);
+    
     if (!roomRef) return;
     roomRef.esp = 0;
     roomRef.web = 0;

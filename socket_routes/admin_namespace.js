@@ -79,13 +79,13 @@ exports.adminSocketContext = function (adminSocket, io) {
                     espId,
                     updatedVotes: votes   // e.g. { "0": 1, "2": 1 } means incremented index 0 & 2
                 };
-
+                resetPresence(espId)
                 io.of("/live-election").to("election").emit("vote-updated", payload);
                 socket.to(espId).emit("vote-updated")
             } catch (err) {
                 console.log("cast-vote error:", err.message);
             }
-        }); 
+        });
 
         // Presence check
         socket.on("present", ({ room, role }) => {
@@ -120,9 +120,8 @@ exports.adminSocketContext = function (adminSocket, io) {
 
                     // Broadcast vote-selected
                     adminSocket.to(espId).emit("vote-selected", votes);
-                    io.of("/live-election").to("election").emit("vote-updated", { espId, votes });
                     console.log("vote-selected confirmed + emitted");
-                }, 3000);
+                }, 2000);
 
             } catch (err) {
                 resetPresence(espId);
