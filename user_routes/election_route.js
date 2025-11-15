@@ -2,7 +2,6 @@ const express = require('express');
 const userElectionRoute = express.Router();
 const db = require('../database')
 const sql = require('mssql');
-const { groupAndSumVotes } = require("../services/count_vote");
 const { verifyRole } = require('../authorization/verify_role')
 
 userElectionRoute.use(verifyRole('user|admin'))

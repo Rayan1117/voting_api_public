@@ -1,5 +1,5 @@
 const express = require("express")
-const { verifyRole } = require("../authorization/verify_role")  
+const { verifyRole } = require("../authorization/verify_role")
 const userConfigRoute = express.Router()
 const db = require("../database")
 

@@ -39,7 +39,7 @@ exports.verifyRole = function (requiredRole) {
 exports.verifySocketRole = function (requiredRole) {
   return function (socket, next) {
     console.log("hi");
-    
+
     const authHeader =
       socket.handshake.auth?.token || // v4 clients (browser)
       socket.handshake.headers["authorization"] || // ESP headers

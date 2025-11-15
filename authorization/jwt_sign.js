@@ -3,7 +3,7 @@ require('dotenv').config()
 
 exports.signJWT =  function(role) {
     try{
-        return jwt.sign({role}, process.env.JWT_SECRET, {expiresIn: '24h'});
+        return jwt.sign({role}, process.env.JWT_SECRET, {expiresIn: '1w'});
     }catch (err) {
         throw err
     }

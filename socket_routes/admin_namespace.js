@@ -20,13 +20,13 @@ exports.adminSocketContext = function (adminSocket, io) {
         console.log("Admin connected:", socket.id);
 
         // When admin app connects to a specific ESP
-        socket.on("post-connection", ({ espId, role }) => {
+        socket.on("post-connection", ({ espId, role }) => { 
             console.log("post-connection -> espId:", espId);
             if (role == "esp") {
                 addSocket(espId, socket);
                 console.log("esp socket added for ", espId);
             }
-
+            
             socket.join(espId);
             console.log(role, " of ", espId, " joined room");
 
@@ -79,6 +79,10 @@ exports.adminSocketContext = function (adminSocket, io) {
                     espId,
                     updatedVotes: votes   // e.g. { "0": 1, "2": 1 } means incremented index 0 & 2
                 };
+
+
+                console.log(payload.updatedVotes);
+                
                 resetPresence(espId)
                 io.of("/live-election").to("election").emit("vote-updated", payload);
                 socket.to(espId).emit("vote-updated")
