@@ -18,6 +18,7 @@ const server = http.createServer(app);
 const io = socketIo(server, {
     allowEIO3: true,
     cors: {
+        credentials: true,
         origin: ["https://hoppscotch.io", "http://localhost:3000"],
         methods: ["GET", "POST"],
     }

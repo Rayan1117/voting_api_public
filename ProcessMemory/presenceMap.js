@@ -30,23 +30,4 @@ function isInitialized(room) {
     presenceMap.set(room, { esp: 0, web: 0, vote: { selected: false, votes: {} } });
 }
 
-// vote state helpers
-function setVoteState(room, votes) {
-    const roomRef = presenceMap.get(room);
-    if (!roomRef) return;
-    roomRef.vote = { selected: true, votes }; // votes = { 1: 0, 2: 1, ... }
-}
-
-function resetVoteState(room) {
-    const roomRef = presenceMap.get(room);
-    if (!roomRef) return;
-    roomRef.vote = { selected: false, votes: {} };
-}
-
-function getVoteState(room) {
-    const roomRef = presenceMap.get(room);
-    if (!roomRef) return null;
-    return roomRef.vote;
-}
-
-module.exports = { addPresence, resetPresence, arePresent, isInitialized, setVoteState, resetVoteState, getVoteState };
+module.exports = { addPresence, resetPresence, arePresent, isInitialized };

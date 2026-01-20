@@ -11,9 +11,6 @@ userElectionRoute.get('/get-all-elections', async (req, res) => {
 
         const { election_id } = req.query;
 
-        console.log(election_id);
-        
-
         const query = !election_id ? "SELECT * FROM election LEFT JOIN config ON election.config_id = config.config_id" : "SELECT * FROM election LEFT JOIN config ON election.config_id = config.config_id WHERE election.election_id = @election_id";
         
         const elections = await new db().execQuery(query, !election_id ? null : {
@@ -22,8 +19,6 @@ userElectionRoute.get('/get-all-elections', async (req, res) => {
                 "value": election_id
             }
         })
-
-        console.log(elections)
 
         if (elections.length === 0) {
             return res.status(404).json({ "error": "No elections found" })
@@ -57,9 +52,6 @@ userElectionRoute.get('/get-vote-count/:electionId', async (req, res) => {
         const result = await new db().execQuery(query, {
             "election_id": { type: sql.VarChar, value: electionId }
         });
-
-        console.log(result);
-        
 
         if (result.length === 0) {
             return res.status(404).json({ error: 'No vote data found' });

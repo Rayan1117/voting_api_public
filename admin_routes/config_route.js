@@ -11,16 +11,13 @@ const { verifyRole } = require("../authorization/verify_role");
 configRoute.use(verifyRole("admin"))
 
 configRoute.post("/create-config", async (req, res) => {
-    const { espID, name , pins, grouppins } = req.body;
-
-    console.log(name, pins, grouppins);
+    const { name , pins, grouppins } = req.body;
     
     try {
 
         await createConfigIfNotExists();
 
         const id = uuidV4()
-        console.log(id);
 
         const pinsstring = JSON.stringify(pins);
         const grpstring = JSON.stringify(grouppins);

@@ -1,21 +1,22 @@
-const vote = new Map() // espId -> { groupIndex: buttonIndex }
+const rc = require("./redisClient");
+const { getTotalGroups } = require("../utilities/election_utilities");
 
-function addVoteIndex(espId, groupIndex, buttonIndex) {
-    if (!vote.has(espId)) vote.set(espId, {});
-    vote.get(espId)[groupIndex] = buttonIndex;
+const key = (espId) => `vote:${espId}`;
+
+async function addVoteIndex(espId, buttonIndex) {
+  await rc.sAdd(key(espId), buttonIndex.toString());
 }
 
-function getVoteIndex(espId, groupIndex) {
-    const votes = vote.get(espId);
-    return votes ? votes[groupIndex] : undefined;
+async function getVoteIndice(espId) {
+  return (await rc.sMembers(key(espId))).map(Number);
 }
 
-function getVoteIndexMap(espId) {
-    return vote.get(espId) || {};
+async function deleteVoteIndice(espId) {
+  return await rc.del(key(espId));
 }
 
-function deleteVoteIndex(espId) {
-    vote.delete(espId);
+async function isAllCanidatesSelected(username, espId) {
+  return (await getTotalGroups(username)) === await rc.sCard(key(espId));
 }
 
-module.exports = { addVoteIndex, getVoteIndex, getVoteIndexMap, deleteVoteIndex };
+module.exports = { addVoteIndex, getVoteIndice, deleteVoteIndice, isAllCanidatesSelected };

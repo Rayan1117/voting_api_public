@@ -4,10 +4,11 @@ class Database {
     #dbConfig = {
         user: 'MZCET',
         password: 'MZCET@1234',
-        server: '103.207.1.91',
+        server: 'mz-db',
         database: 'CSE8761',
         options: {
             trustServerCertificate: true,
+            encrypt: true
         },
     };
 

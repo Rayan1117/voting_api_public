@@ -28,12 +28,10 @@ loginRouter.post('/login', async (req, res) => {
         if(!result) {
             throw new Error('id or password may be incorrect')
         }
-
-        console.log(result)
-
+        
         const role = result.role
 
-        const token = signJWT(role)
+        const token = signJWT(role, username)
 
         if(!token) {
             throw new Error('Invalid token')
