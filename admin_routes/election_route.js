@@ -6,6 +6,7 @@ const sql = require('mssql');
 const db = require('../database');
 const { getSocket } = require('../ProcessMemory/espToSocketMap');
 const { verifyRole } = require("../authorization/verify_role");
+const { isAllCanidatesSelected } = require('../ProcessMemory/voteMemo');
 
 electionRoute.use(verifyRole("admin"))
 
@@ -167,7 +168,7 @@ electionRoute.post("/resume-election", async (req, res) => {
             throw new Error("Election not found");
         }
 
-        const { isCurrent, isEnd, pin_bits } = result[0];
+        const { isCurrent, isEnd } = result[0];
 
         if (!isCurrent) {
             throw new Error("Election is not currently running, please start it first.");
@@ -181,6 +182,7 @@ electionRoute.post("/resume-election", async (req, res) => {
             throw new Error("socket for the esp id not found");
         }
 
+        if (!(await isAllCanidatesSelected(req.username, espId))) {
         socket.emit("change-config", {
             pin_bits: JSON.parse(result[0].pin_bits),
             group_pins: JSON.parse(result[0].group_pins)
@@ -207,6 +209,14 @@ electionRoute.post("/resume-election", async (req, res) => {
 
 
         });
+    }
+    else {
+        return res.json({
+                message: "Election resumed successfully",
+                electionId,
+                config: { pin_bits: JSON.parse(result[0].pin_bits) }
+            });
+    }
 
     } catch (err) {
         console.error("❌ Resume election error:", err.message);

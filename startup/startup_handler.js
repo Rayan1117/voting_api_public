@@ -1,26 +1,61 @@
 const express = require('express');
 const startupRoute = express.Router();
-let db = require('../database')
+let db = require('../database');
+const { getVoteIndice, isAllCanidatesSelected } = require("../ProcessMemory/voteMemo")
+const { verifyRole } = require("../authorization/verify_role")
+const sql = require("mssql")
 
-startupRoute.get('/get-config',async function (req, res) {
-    try{
-        const {espId} = req.query;      //will be used in future when setup separate DB for separate EVM
+startupRoute.use(verifyRole("admin"))
 
-        const query = "SELECT pin_bits, group_pins FROM config JOIN election ON election.config_id = config.config_id WHERE election.isCurrent = 1"
+startupRoute.get('/get-config', async (req, res) => {
+    try {
 
-        const pins = await new db().execQuery(query).then(result => result[0])
+        const { espId } = req.query
+        const { username } = req;
 
-        console.log(pins)
+        const query = `
+      SELECT pin_bits, group_pins
+      FROM config
+      JOIN election ON election.config_id = config.config_id
+      WHERE username=@username AND election.isCurrent = 1
+    `;
 
-        if(!pins) {
-            throw new  Error('No results found')
-        }
+        const pins = await new db().execQuery(query, {
+            "username": {
+                "type": sql.VarChar,
+                "value": username
+            }
+        }).then(r => r[0]);
+        if (pins.length == 0) throw new Error('No results found');
 
-        return res.status(200).json(pins)
+        const cachedVotesRaw = await getVoteIndice(espId);
+        console.log("cached votes:", cachedVotesRaw);
 
-    }catch(err) {
-        console.log(err.message)
-        return res.status(400).json({"error": err.message});
+        const cachedVotes = cachedVotesRaw ?? [];
+
+        return res.status(200).json({
+            ...pins,
+            cached_votes: cachedVotes
+        });
+
+    } catch (err) {
+        console.log(err.message);
+        return res.status(400).json({ error: err.message });
+    }
+});
+
+startupRoute.get("/vote-status", async (req, res) => {
+    try {
+        const { espId } = req.query
+        const { username } = req
+
+        const flag = await isAllCanidatesSelected(username, espId)
+
+        return res.status(200).json({ flag })
+
+    } catch (err) {
+        console.log(err.message);
+        return res.status(400).json({ error: err.message });
     }
 })
 

@@ -100,24 +100,24 @@ exports.adminSocketContext = function (adminSocket, io) {
 
                 console.log("vote index : ", index);
                 
-
                 await addVoteIndex(espId, index)
 
-                adminSocket.to(espId).emit("check-presence", espId);
+                if (await isAllCanidatesSelected(socket.username, espId)) {
+                    
+                    adminSocket.to(espId).emit("check-presence", espId);
 
-                if (await isAllCanidatesSelected(socket.username, espId))
                     setTimeout(() => {
                         if (!arePresent(espId)) {
                             console.log("Presence failed -> reset");
                             resetPresence(espId);
-                            deleteVoteIndice(espId);
-                            adminSocket.to(espId).emit("reset-selected", "reset request");
+
                             return;
                         }
 
                         adminSocket.to(espId).emit("vote-selected", index);
                         console.log("vote-selected confirmed + emitted");
                     }, 2000);
+                }
 
             } catch (err) {
                 resetPresence(espId);
