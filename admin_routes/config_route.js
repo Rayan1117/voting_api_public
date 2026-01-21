@@ -11,7 +11,7 @@ const { verifyRole } = require("../authorization/verify_role");
 configRoute.use(verifyRole("admin"))
 
 configRoute.post("/create-config", async (req, res) => {
-    const { name , pins, grouppins } = req.body;
+    const { name , pins, grouppins, groupNames } = req.body;
     
     try {
 
@@ -22,7 +22,7 @@ configRoute.post("/create-config", async (req, res) => {
         const pinsstring = JSON.stringify(pins);
         const grpstring = JSON.stringify(grouppins);
 
-        const query = `INSERT INTO config (config_name, config_id, pin_bits, group_pins) VALUES (@name, @id, @pins, @grouppins)`;
+        const query = `INSERT INTO config (config_name, config_id, pin_bits, group_pins, group_names) VALUES (@name, @id, @pins, @grouppins, @group_names)`;
         await new db().execQuery(query, {
             "name": {
                 "type": sql.VarChar,
@@ -39,7 +39,11 @@ configRoute.post("/create-config", async (req, res) => {
             "grouppins": {
                 "type": sql.NVarChar,
                 "value": grpstring
-            }
+            },
+            "group_names": {
+                "type": sql.NVarChar,
+                "value": JSON.stringify(groupNames)
+            },
         });
 
         res.status(201).json({ "message": "configuration created successfully", "config_id": id });

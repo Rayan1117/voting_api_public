@@ -14,10 +14,10 @@ startupRoute.get('/get-config', async (req, res) => {
         const { username } = req;
 
         const query = `
-      SELECT pin_bits, group_pins
-      FROM config
-      JOIN election ON election.config_id = config.config_id
-      WHERE username=@username AND election.isCurrent = 1
+      SELECT pin_bits, group_pins, group_names, e.candidates as candidate_names
+      FROM config c
+      JOIN election e ON e.config_id = c.config_id
+      WHERE username=@username AND isCurrent = 1
     `;
 
         const pins = await new db().execQuery(query, {
@@ -26,13 +26,14 @@ startupRoute.get('/get-config', async (req, res) => {
                 "value": username
             }
         }).then(r => r[0]);
-        if (pins.length == 0) throw new Error('No results found');
+
+        if (pins?.length == 0) throw new Error('No results found');
 
         const cachedVotesRaw = await getVoteIndice(espId);
         console.log("cached votes:", cachedVotesRaw);
 
         const cachedVotes = cachedVotesRaw ?? [];
-
+        
         return res.status(200).json({
             ...pins,
             cached_votes: cachedVotes

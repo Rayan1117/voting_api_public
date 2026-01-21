@@ -42,7 +42,8 @@ userElectionRoute.get('/get-vote-count/:electionId', async (req, res) => {
             e.election_name,
             e.candidates,
             c.group_pins,
-            c.pin_bits
+            c.pin_bits,
+            c.group_names
         FROM vote_counts v
         JOIN election e ON e.election_id = v.election_id
         JOIN config c ON c.config_id = e.config_id
