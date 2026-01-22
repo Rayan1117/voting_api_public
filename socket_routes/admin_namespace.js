@@ -16,24 +16,20 @@ exports.adminSocketContext = function (adminSocket, io) {
     adminSocket.on('connection', (socket) => {
         console.log("Admin connected:", socket.id);
 
-        socket.on("post-connection", ({ espId, role }) => { 
+        socket.on("post-connection", ({ espId, role }) => {
             console.log("post-connection -> espId:", espId);
+            console.log("role", role);
+
             if (role == "esp") {
                 addSocket(espId, socket);
                 console.log("esp socket added for ", espId);
             }
-            
+
             socket.join(espId);
             console.log(role, "of", espId, "joined room");
 
 
             isInitialized(espId);
-
-            const state = undefined
-            if (state?.selected) {
-                console.log("Restoring vote state for esp:", espId, state);
-                socket.emit("vote-selected", state.votes || state.index);
-            }
         });
 
         socket.on("message", (data) => {
@@ -57,9 +53,9 @@ exports.adminSocketContext = function (adminSocket, io) {
         socket.on('cast-vote', async ({ espId, electionId }) => {
             try {
                 const votes = (await getVoteIndice(espId)).map(Number)
-                
+
                 console.log("votes : " + votes);
-                
+
                 if (votes?.length == 0) throw new Error("votes not found")
 
                 const updatedVotes = await voteCast(electionId, votes)
@@ -71,7 +67,7 @@ exports.adminSocketContext = function (adminSocket, io) {
                 };
 
                 console.log(payload.updatedVotes);
-                
+
                 deleteVoteIndice(espId)
                 resetPresence(espId)
                 io.of("/live-election").to("election").emit("vote-updated", payload);
@@ -95,15 +91,15 @@ exports.adminSocketContext = function (adminSocket, io) {
             try {
 
                 console.log(socket.username);
-                
-                var {espId, voteIndex: index} = data;
+
+                var { espId, voteIndex: index } = data;
 
                 console.log("vote index : ", index);
-                
+
                 await addVoteIndex(espId, index)
 
                 if (await isAllCanidatesSelected(socket.username, espId)) {
-                    
+
                     adminSocket.to(espId).emit("check-presence", espId);
 
                     setTimeout(() => {

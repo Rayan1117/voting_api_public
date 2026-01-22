@@ -95,6 +95,9 @@ electionRoute.post("/start-election", async (req, res) => {
             throw new Error("this election has already ended")
         }
 
+        console.log("espId",espId);
+        
+
         const socket = getSocket(espId)
 
         if (!socket) {
@@ -176,6 +179,10 @@ electionRoute.post("/resume-election", async (req, res) => {
         if (isEnd) {
             throw new Error("This election has already ended");
         }
+        
+
+        console.log("espId",espId);
+        
 
         const socket = getSocket(espId);
         if (!socket) {
