@@ -282,7 +282,7 @@ electionRoute.post("/end-election", async (req, res) => {
     }
 })
 
-electionRoute.delete("delete-election", async (req, res) => {
+electionRoute.delete("/delete-election", async (req, res) => {
     try {
         const { electionId } = req.query
 
