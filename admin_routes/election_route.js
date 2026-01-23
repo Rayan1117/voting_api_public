@@ -57,96 +57,113 @@ electionRoute.post('/create-election', async (req, res) => {
 
 electionRoute.post("/start-election", async (req, res) => {
     try {
-        const { electionId, espId } = req.body
+        const { electionId, espId } = req.body;
 
         if (!electionId) {
-            throw new Error("election id field is required")
+            throw new Error("election id field is required");
         }
 
-        const query = "SELECT election.isCurrent, election.isEnd, election.config_id, config.pin_bits, config.group_pins FROM election LEFT JOIN config ON config.config_id = election.config_id WHERE election_id = @election_id"
+        const query = `
+      SELECT 
+        election.isCurrent, 
+        election.isEnd, 
+        election.config_id, 
+        election.candidates, 
+        config.pin_bits, 
+        config.group_pins, 
+        config.group_names
+      FROM election 
+      LEFT JOIN config ON config.config_id = election.config_id 
+      WHERE election_id = @election_id
+    `;
 
-        const countQuery = "SELECT SUM(CAST(isCurrent AS INT)) AS count FROM election"
+        const countQuery = "SELECT SUM(CAST(isCurrent AS INT)) AS count FROM election";
 
         const result = await new db().execQuery(query, {
             "election_id": {
                 "type": sql.VarChar,
                 "value": electionId
             }
-        })
-
-        if (result[0]["config_id"] === null) {
-            throw new Error("set the configurations before starting election")
-        }
-
-        const count = await new db().execQuery(countQuery).then(data => data[0]['count'])
+        });
 
         if (result.length === 0) {
-            throw new Error("Election Not found")
+            throw new Error("Election not found");
         }
 
-        console.log(result)
+        if (result[0]["config_id"] === null) {
+            throw new Error("set the configurations before starting election");
+        }
 
-        const { isEnd } = result[0]
+        const count = await new db()
+            .execQuery(countQuery)
+            .then(data => data[0]['count']);
+
+        const { isEnd } = result[0];
 
         if (count) {
-            throw new Error("there is already an election currently ongoing")
+            throw new Error("there is already an election currently ongoing");
         }
         if (isEnd) {
-            throw new Error("this election has already ended")
+            throw new Error("this election has already ended");
         }
 
-        console.log("espId",espId);
-        
+        console.log("espId:", espId);
 
-        const socket = getSocket(espId)
+        const socket = getSocket(espId);
 
         if (!socket) {
-            throw new Error("socket for the esp id not found")
+            throw new Error("socket for the esp id not found");
         }
 
         socket.emit("change-config", {
             pin_bits: JSON.parse(result[0].pin_bits),
-            group_pins: JSON.parse(result[0].group_pins)
+            group_pins: JSON.parse(result[0].group_pins),
+            group_names: result[0].group_names || "{}",
+            candidate_names: result[0].candidates || "[]"
         });
 
-
         const timeout = setTimeout(() => {
-            return res.status(408).json({ "error": "timed out receiving confirmation from the client" })
-        }, 2000)
+            return res.status(408).json({
+                "error": "timed out receiving confirmation from the client"
+            });
+        }, 2000);
 
         socket.once('config-changed', async (response) => {
             try {
                 console.log("Received confirmation from the client:", response);
-                clearTimeout(timeout)           
+                clearTimeout(timeout);
 
-                const query = "UPDATE election SET isCurrent = 1 WHERE election_id = @election_id"
+                const updateQuery =
+                    "UPDATE election SET isCurrent = 1 WHERE election_id = @election_id";
 
-                await new db().execQuery(query, {
+                await new db().execQuery(updateQuery, {
                     "election_id": {
                         "type": sql.VarChar,
                         "value": electionId
                     }
                 });
 
-                startVoteQuery = "INSERT INTO vote_counts(election_id) VALUES(@election_id)"
+                const startVoteQuery =
+                    "INSERT INTO vote_counts(election_id) VALUES(@election_id)";
 
                 await new db().execQuery(startVoteQuery, {
                     "election_id": {
                         "type": sql.VarChar,
                         "value": electionId
                     }
-                })
+                });
 
                 return res.send("Election Started Successfully");
             } catch (err) {
-                throw err
+                throw err;
             }
         });
 
     } catch (err) {
-        return res.status(400).json({ "error": err.message })
+        return res.status(400).json({ "error": err.message });
     }
 });
+
 
 electionRoute.post("/resume-election", async (req, res) => {
     try {
@@ -179,10 +196,10 @@ electionRoute.post("/resume-election", async (req, res) => {
         if (isEnd) {
             throw new Error("This election has already ended");
         }
-        
 
-        console.log("espId",espId);
-        
+
+        console.log("espId", espId);
+
 
         const socket = getSocket(espId);
         if (!socket) {
@@ -190,40 +207,40 @@ electionRoute.post("/resume-election", async (req, res) => {
         }
 
         if (!(await isAllCanidatesSelected(req.username, espId))) {
-        socket.emit("change-config", {
-            pin_bits: JSON.parse(result[0].pin_bits),
-            group_pins: JSON.parse(result[0].group_pins)
-        });
+            socket.emit("change-config", {
+                pin_bits: JSON.parse(result[0].pin_bits),
+                group_pins: JSON.parse(result[0].group_pins)
+            });
 
-        const timeout = setTimeout(() => {
-            return res.status(408).json({ error: "Timed out waiting for ESP confirmation" });
-        }, 10000);
+            const timeout = setTimeout(() => {
+                return res.status(408).json({ error: "Timed out waiting for ESP confirmation" });
+            }, 10000);
 
-        socket.once("config-changed", () => {
-            clearTimeout(timeout);
-            const voteState = {}
-            JSON.parse(result[0]["vote_count"]).forEach((val, ind) => {
+            socket.once("config-changed", () => {
+                clearTimeout(timeout);
+                const voteState = {}
+                JSON.parse(result[0]["vote_count"]).forEach((val, ind) => {
 
-                voteState[ind + 1] = val;
-            })
+                    voteState[ind + 1] = val;
+                })
 
 
+                return res.json({
+                    message: "Election resumed successfully",
+                    electionId,
+                    config: { pin_bits: JSON.parse(result[0].pin_bits) }
+                });
+
+
+            });
+        }
+        else {
             return res.json({
                 message: "Election resumed successfully",
                 electionId,
                 config: { pin_bits: JSON.parse(result[0].pin_bits) }
             });
-
-
-        });
-    }
-    else {
-        return res.json({
-                message: "Election resumed successfully",
-                electionId,
-                config: { pin_bits: JSON.parse(result[0].pin_bits) }
-            });
-    }
+        }
 
     } catch (err) {
         console.error("❌ Resume election error:", err.message);
@@ -260,6 +277,28 @@ electionRoute.post("/end-election", async (req, res) => {
         })
 
         return res.status(200).send("Election ends")
+    } catch (err) {
+        return res.status(400).json({ "error": err.message })
+    }
+})
+
+electionRoute.delete("delete-election", async (req, res) => {
+    try {
+        const { electionId } = req.query
+
+        const query = "DELETE FROM election WHERE election_id = @electionId"
+
+        const param = {
+            "electionId": {
+                "type": sql.VarChar,
+                "value": electionId
+            }
+        }
+
+        await new db().execQuery(query, param)
+
+        return res.sendStatus(204)
+
     } catch (err) {
         return res.status(400).json({ "error": err.message })
     }
