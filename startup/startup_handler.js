@@ -29,7 +29,7 @@ startupRoute.get('/get-config', async (req, res) => {
 
         console.log("configs :",pins);
 
-        if (pins?.length == 0) throw new Error('No results found');
+        if (!pins) throw new Error('No results found');
 
         const cachedVotesRaw = await getVoteIndice(espId);
         console.log("cached votes:", cachedVotesRaw);
