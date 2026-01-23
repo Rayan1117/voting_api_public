@@ -19,7 +19,7 @@ const io = socketIo(server, {
     allowEIO3: true,
     cors: {
         credentials: true,
-        origin: ["https://hoppscotch.io", "http://localhost:3000"],
+        origin: ["https://hoppscotch.io", "http://localhost:3000", "https://smart-evm-web.onrender.com"],
         methods: ["GET", "POST"],
     }
 })
