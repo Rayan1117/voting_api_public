@@ -6,7 +6,7 @@ const sql = require('mssql');
 const db = require('../database');
 const { getSocket } = require('../ProcessMemory/espToSocketMap');
 const { verifyRole } = require("../authorization/verify_role");
-const { isAllCanidatesSelected } = require('../ProcessMemory/voteMemo');
+const { deleteVoteIndice } = require('../ProcessMemory/voteMemo');
 
 electionRoute.use(verifyRole("admin"))
 
@@ -153,6 +153,8 @@ electionRoute.post("/start-election", async (req, res) => {
                     }
                 });
 
+                deleteVoteIndice(req.username)
+
                 return res.send("Election Started Successfully");
             } catch (err) {
                 throw err;
@@ -197,53 +199,14 @@ electionRoute.post("/resume-election", async (req, res) => {
             throw new Error("This election has already ended");
         }
 
-
-        console.log("espId", espId);
-
-
-        const socket = getSocket(espId);
-        if (!socket) {
-            throw new Error("socket for the esp id not found");
-        }
-
-        if (!(await isAllCanidatesSelected(req.username, espId))) {
-            socket.emit("change-config", {
-                pin_bits: JSON.parse(result[0].pin_bits),
-                group_pins: JSON.parse(result[0].group_pins)
-            });
-
-            const timeout = setTimeout(() => {
-                return res.status(408).json({ error: "Timed out waiting for ESP confirmation" });
-            }, 10000);
-
-            socket.once("config-changed", () => {
-                clearTimeout(timeout);
-                const voteState = {}
-                JSON.parse(result[0]["vote_count"]).forEach((val, ind) => {
-
-                    voteState[ind + 1] = val;
-                })
-
-
-                return res.json({
-                    message: "Election resumed successfully",
-                    electionId,
-                    config: { pin_bits: JSON.parse(result[0].pin_bits) }
-                });
-
-
-            });
-        }
-        else {
-            return res.json({
-                message: "Election resumed successfully",
-                electionId,
-                config: { pin_bits: JSON.parse(result[0].pin_bits) }
-            });
-        }
+        return res.json({
+            message: "Election resumed successfully",
+            electionId,
+            config: { pin_bits: JSON.parse(result[0].pin_bits) }
+        });
 
     } catch (err) {
-        console.error("❌ Resume election error:", err.message);
+        console.error("Resume election error:", err.message);
         return res.status(400).json({ error: err.message });
     }
 });
@@ -254,19 +217,6 @@ electionRoute.post("/end-election", async (req, res) => {
 
         const { electionId } = req.body
 
-        const getQuery = "SELECT * FROM election WHERE election_id = @election_id"
-
-        const { isCurrent } = await new db().execQuery(getQuery, {
-            "election_id": {
-                "type": sql.VarChar,
-                "value": electionId
-            }
-        }).then(result => result[0])
-
-        if (!isCurrent) {
-            throw new Error("this is not an ongoing election")
-        }
-
         const query = "UPDATE election SET isEnd = 1, isCurrent = 0 WHERE election_id = @election_id"
 
         await new db().execQuery(query, {
@@ -275,6 +225,8 @@ electionRoute.post("/end-election", async (req, res) => {
                 "value": electionId
             }
         })
+
+        deleteVoteIndice(req.username)
 
         return res.status(200).send("Election ends")
     } catch (err) {
@@ -285,6 +237,19 @@ electionRoute.post("/end-election", async (req, res) => {
 electionRoute.delete("/delete-election", async (req, res) => {
     try {
         const { electionId } = req.query
+
+        const getQuery = "SELECT isCurrent FROM election WHERE election_id = @election_id"
+
+        const { isCurrent } = await new db().execQuery(getQuery, {
+            "election_id": {
+                "type": sql.VarChar,
+                "value": electionId
+            }
+        }).then(result => result[0])
+
+        if (isCurrent) {
+            throw new Error("Ongoing election: Finalize before deleting")
+        }
 
         const query = "DELETE FROM election WHERE election_id = @electionId"
 
