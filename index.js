@@ -12,6 +12,8 @@ const { tokenVerifyRoute } = require("./authorization/verify_token");
 const { adminSocketContext } = require('./socket_routes/admin_namespace');
 const { userSocketContext } = require('./socket_routes/user_namespace');
 const userConfigRoute = require('./user_routes/config_route');
+const { adminRoute } = require("./admin_routes/special_access_route/creation_route")
+const path = require("path")
 
 const app = express();
 const server = http.createServer(app);
@@ -42,6 +44,11 @@ app.use('/auth', loginRouter);
 app.use('/utils', userElectionRoute);
 app.use("/utils", userConfigRoute);
 app.use("/verification", tokenVerifyRoute);
+app.use("/special-access", adminRoute)
+app.use(
+    "/special-access/page",
+    express.static(path.join(__dirname, "special_route_page"))
+)
 
 server.listen(PORT, '0.0.0.0', () => {
     const networkInterfaces = os.networkInterfaces();

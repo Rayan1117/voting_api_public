@@ -11,12 +11,21 @@ userElectionRoute.get('/get-all-elections', async (req, res) => {
 
         const { election_id } = req.query;
 
-        const query = !election_id ? "SELECT * FROM election LEFT JOIN config ON election.config_id = config.config_id" : "SELECT * FROM election LEFT JOIN config ON election.config_id = config.config_id WHERE election.election_id = @election_id";
-        
-        const elections = await new db().execQuery(query, !election_id ? null : {
+        const query = !election_id ? "SELECT * FROM election LEFT JOIN config ON election.config_id = config.config_id WHERE esp_id = @username" : "SELECT * FROM election LEFT JOIN config ON election.config_id = config.config_id WHERE election.election_id = @election_id AND esp_id = @username";
+
+        const elections = await new db().execQuery(query, !election_id ? {
+            "username": {
+                "type": sql.VarChar,
+                "value": req.username
+            }
+        } : {
             "election_id": {
                 "type": sql.VarChar,
                 "value": election_id
+            },
+            "username": {
+                "type": sql.VarChar,
+                "value": req.username
             }
         })
 

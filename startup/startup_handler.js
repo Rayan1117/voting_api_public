@@ -2,7 +2,7 @@ const express = require('express');
 const startupRoute = express.Router();
 let db = require('../database');
 const { getVoteIndice, isAllCanidatesSelected } = require("../ProcessMemory/voteMemo")
-const { verifyRole } = require("../authorization/verify_role")
+const { verifyRole } = require("../authorization/verify_role")  
 const sql = require("mssql")
 
 startupRoute.use(verifyRole("admin"))
@@ -17,7 +17,7 @@ startupRoute.get('/get-config', async (req, res) => {
       SELECT pin_bits, group_pins, group_names, e.candidates as candidate_names
       FROM config c
       JOIN election e ON e.config_id = c.config_id
-      WHERE username=@username AND isCurrent = 1
+      WHERE esp_id=@username AND isCurrent = 1
     `;
 
         const pins = await new db().execQuery(query, {
@@ -29,7 +29,7 @@ startupRoute.get('/get-config', async (req, res) => {
 
         console.log("configs :",pins);
 
-        if (!pins) throw new Error('No results found');
+        if (!pins) throw new Error('No results found', {code: 404});
 
         const cachedVotesRaw = await getVoteIndice(espId);
         console.log("cached votes:", cachedVotesRaw);
@@ -43,7 +43,7 @@ startupRoute.get('/get-config', async (req, res) => {
 
     } catch (err) {
         console.log(err.message);
-        return res.status(400).json({ error: err.message });
+        return res.status(err.code || 400).json({ error: err.message });
     }
 });
 

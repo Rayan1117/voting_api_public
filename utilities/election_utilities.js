@@ -3,7 +3,7 @@ const sql = require("mssql")
 
 async function getTotalGroups(username) {
     try {
-        const query = "SELECT c.group_pins AS groups FROM election e LEFT JOIN config c ON e.config_id = c.config_id WHERE e.username = @username AND e.isCurrent = 1 "
+        const query = "SELECT c.group_pins AS groups FROM election e LEFT JOIN config c ON e.config_id = c.config_id WHERE e.esp_id = @username AND e.isCurrent = 1 "
         
         let { groups } = (await new db().execQuery(query, {
             "username" : {

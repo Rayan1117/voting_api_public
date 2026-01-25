@@ -9,7 +9,7 @@ const voteCast = async function (electionId, voteArr) {
 
         let {currVotes} = (await new db().execQuery(query, {
             "electionId": {
-                "type": sql.VarChar,
+                "type": sql.NVarChar,
                 "value": electionId
             }
         }))[0]
@@ -32,7 +32,7 @@ const voteCast = async function (electionId, voteArr) {
         await new db().execQuery(
             "UPDATE vote_counts SET vote_count = @vote_count WHERE election_id = @election_id",
             {
-                "vote_count": { type: sql.NVarChar, value: currVotes },
+                "vote_count": { type: sql.VarChar, value: currVotes },
                 "election_id": { type: sql.VarChar, value: electionId }
             }
         )

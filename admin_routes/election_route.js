@@ -20,8 +20,8 @@ electionRoute.post('/create-election', async (req, res) => {
 
         const election_id = uuidV4()
 
-        const query = `INSERT INTO election (election_id, election_name, config_id, candidates, username)
-                        VALUES(@e_id, @e_name, @config_id, @candidates, @username)`
+        const query = `INSERT INTO election (election_id, election_name, config_id, candidates, esp_id)
+                            VALUES(@e_id, @e_name, @config_id, @candidates, @username)`
 
         await new db().execQuery(query, {
             "e_id": {
@@ -59,6 +59,8 @@ electionRoute.post("/start-election", async (req, res) => {
     try {
         const { electionId, espId } = req.body;
 
+        console.log(espId);
+
         if (!electionId) {
             throw new Error("election id field is required");
         }
@@ -77,7 +79,7 @@ electionRoute.post("/start-election", async (req, res) => {
       WHERE election_id = @election_id
     `;
 
-        const countQuery = "SELECT SUM(CAST(isCurrent AS INT)) AS count FROM election";
+        const countQuery = "SELECT SUM(CAST(isCurrent AS INT)) AS count FROM election WHERE esp_id = @username";
 
         const result = await new db().execQuery(query, {
             "election_id": {
@@ -90,20 +92,25 @@ electionRoute.post("/start-election", async (req, res) => {
             throw new Error("Election not found");
         }
 
-        if (result[0]["config_id"] === null) {
-            throw new Error("set the configurations before starting election");
-        }
-
         const count = await new db()
-            .execQuery(countQuery)
+            .execQuery(countQuery, {
+                "username": {
+                    "type": sql.VarChar,
+                    "value": req.username
+                }
+            })
             .then(data => data[0]['count']);
 
         const { isEnd } = result[0];
 
         if (count) {
+            console.log(count);
+
             throw new Error("there is already an election currently ongoing");
         }
         if (isEnd) {
+            console.log(isEnd);
+
             throw new Error("this election has already ended");
         }
 
@@ -233,40 +240,56 @@ electionRoute.post("/end-election", async (req, res) => {
         return res.status(400).json({ "error": err.message })
     }
 })
-
 electionRoute.delete("/delete-election", async (req, res) => {
     try {
-        const { electionId } = req.query
+        const { electionId } = req.query;
 
-        const getQuery = "SELECT isCurrent FROM election WHERE election_id = @election_id"
-
-        const { isCurrent } = await new db().execQuery(getQuery, {
-            "election_id": {
-                "type": sql.VarChar,
-                "value": electionId
-            }
-        }).then(result => result[0])
-
-        if (isCurrent) {
-            throw new Error("Ongoing election: Finalize before deleting")
+        if (!electionId) {
+            return res.status(400).json({ error: "Election ID required" });
         }
 
-        const query = "DELETE FROM election WHERE election_id = @electionId"
+        const getQuery = `
+      SELECT isCurrent, config_id
+      FROM election
+      WHERE election_id = @election_id
+    `;
 
-        const param = {
-            "electionId": {
-                "type": sql.VarChar,
-                "value": electionId
-            }
+        const result = await new db().execQuery(getQuery, {
+            election_id: { type: sql.VarChar, value: electionId }
+        });
+
+        if (result.length === 0) {
+            throw new Error("Election not found");
         }
 
-        await new db().execQuery(query, param)
+        if (result[0].isCurrent) {
+            throw new Error("Ongoing election: Finalize before deleting");
+        }
 
-        return res.sendStatus(204)
+
+        await new db().execQuery(
+            "DELETE FROM vote_counts WHERE election_id = @election_id",
+            { election_id: { type: sql.VarChar, value: electionId } }
+        );
+
+
+        await new db().execQuery(
+            "DELETE FROM election WHERE election_id = @election_id",
+            { election_id: { type: sql.VarChar, value: electionId } }
+        );
+
+
+        await new db().execQuery(
+            "DELETE FROM config WHERE config_id = @config_id",
+            { config_id: { type: sql.VarChar, value: result[0].config_id } }
+        );
+
+        return res.sendStatus(204);
 
     } catch (err) {
-        return res.status(400).json({ "error": err.message })
+        return res.status(400).json({ error: err.message });
     }
-})
+});
+
 
 module.exports = electionRoute

@@ -5,7 +5,7 @@ class Database {
         user: 'MZCET',
         password: 'MZCET@1234',
         server: '103.207.1.91',
-        database: 'CSE8761',
+        database: 'CSE8882',
         options: {
             trustServerCertificate: true,
             encrypt: true
