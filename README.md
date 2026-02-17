@@ -1,7 +1,14 @@
-🗳️ Voting API
+## 🗳️ Voting API
 
 Backend service for the **Smart EVM / Arduino Voting System**.
 This API manages elections, user authentication, and real-time communication between the **ESP32** device and the **web dashboard**.
+
+---
+
+## 🎨 Project Presentation
+
+You can view the Smart EVM presentation design on Canva:
+👉 https://www.canva.com/design/DAG_B811Ybg/rPAJ8L_VBC7w5IaCP2MEHA/edit?utm_content=DAG_B811Ybg&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
 
 ---
 
@@ -15,7 +22,7 @@ This API manages elections, user authentication, and real-time communication bet
 
 ---
 
-🔎 Overview
+## 🔎 Overview
 
 The Voting API provides the following features:
 
@@ -28,7 +35,7 @@ The Voting API provides the following features:
 
 ---
 
-📁 Project Structure
+## 📁 Project Structure
 
 index.js — Initializes Express app, middleware, and Socket.IO
 authentication/ — Handles login and JWT generation
@@ -40,7 +47,7 @@ sketch.ino — Reference Arduino (ESP32) implementation
 
 ---
 
-⚙️ Requirements
+## ⚙️ Requirements
 
 Node.js 20.x or later
 npm
@@ -67,9 +74,9 @@ Health Check:
 
 ---
 
-🔐 Authentication
+## 🔐 Authentication
 
-Login:
+### Login:
 
 **Endpoint:** POST /auth/login
 
@@ -96,7 +103,7 @@ Login:
 Use the token in your requests:
 Authorization: Bearer <JWT_TOKEN>
 
- Roles:
+ ### Roles:
 
 * **admin:** Full access to manage elections and configurations
 * **user:** Read-only access to view results and data
@@ -104,7 +111,7 @@ Authorization: Bearer <JWT_TOKEN>
 
 ---
 
-🌐 REST API Routes
+## 🌐 REST API Routes
 
 **Public Routes**
 
@@ -131,7 +138,7 @@ Authorization: Bearer <JWT_TOKEN>
 
 ---
 
-🧠 Redis Usage
+## 🧠 Redis Usage
 
 Redis temporarily stores votes and active device states.
 It keeps data fast and consistent during real-time sessions.
@@ -144,7 +151,7 @@ Redis helps the ESP reconnect smoothly without losing data mid-session.
 
 ---
 
-🗄️ Database (SQL Server)
+## 🗄️ Database (SQL Server)
 
 The database contains three main entities:
 
@@ -179,7 +186,7 @@ Typical flow:
 
 ---
 
-🔌 Arduino / ESP32 Integration
+## 🔌 Arduino / ESP32 Integration
 
 ESP32 connects to the backend through WebSocket (Socket.IO).
 It receives configuration data and reports button interactions in real time.
@@ -210,7 +217,7 @@ ArduinoJson.h
 
 ---
 
-👤 Example Admin Login
+## 👤 Example Admin Login
 
 Username: NVEM1234
 Password: pass@123
