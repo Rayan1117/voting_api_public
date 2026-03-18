@@ -12,39 +12,32 @@ loginRouter.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Missing credentials' })
     }
 
-    const table = role === 'admin' ? 'election_admins' : 'election_users'
-    const column = role === 'admin' ? 'esp_id' : 'username'
-
     const query = `
-      SELECT * FROM ${table}
-      WHERE ${column} = @username
+      SELECT * FROM election_users
+      WHERE username = @username
       AND password = @password
+      AND role = @role
     `
 
     const result = await new db().execQuery(query, {
-      username: {
-        type: role === 'admin' ? sql.VARCHAR(20) : sql.VARCHAR(50),
-        value: username,
-      },
-      password: {
-        type: sql.VARCHAR(255),
-        value: password,
-      }
+      username: { type: sql.VARCHAR(50), value: username },
+      password: { type: sql.VARCHAR(255), value: password },
+      role: { type: sql.VARCHAR(10), value: role }
     })
-
-    console.log(result);
-    
 
     if (result.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
-    const token = signJWT(role, username)
+    const user = result[0]
+
+    const token = signJWT(user.role, user.esp_id)
 
     return res.status(200).json({
       message: 'Successfully logged in',
       token,
-      role
+      role: user.role,
+      esp_id: user.esp_id
     })
 
   } catch (err) {

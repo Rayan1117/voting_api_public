@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <title>Account Creation</title>
+  <title>Admin Account Creation</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -11,123 +12,182 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      margin: 0;
     }
+
     .card {
       background: #fff;
       padding: 20px;
       width: 320px;
       border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
     }
+
     h2 {
       text-align: center;
+      margin: 0 0 12px 0;
     }
-    input, select, button {
+
+    input,
+    select,
+    button {
       width: 100%;
       margin-top: 10px;
       padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 14px;
     }
+
     button {
       background: #1C74E9;
       color: white;
       border: none;
       cursor: pointer;
+      font-weight: 600;
     }
+
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
     .hidden {
       display: none;
     }
+
     .error {
       color: red;
-      font-size: 14px;
+      font-size: 13px;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    .success {
+      color: green;
+      font-size: 13px;
       margin-top: 10px;
       text-align: center;
     }
   </style>
 </head>
+
 <body>
 
-<div class="card" id="authCard">
-  <h2>Admin Access</h2>
-  <input type="password" id="adminPassword" placeholder="Admin Password">
-  <button onclick="authenticate()">Verify</button>
-  <div class="error" id="authError"></div>
-</div>
+  <!-- Admin password card -->
+  <div class="card" id="authCard">
+    <h2>Admin Access</h2>
+    <input type="password" id="adminPassword" placeholder="Admin Password">
+    <button onclick="authenticate()">Verify</button>
+    <div class="error" id="authError"></div>
+  </div>
 
-<div class="card hidden" id="createCard">
-  <h2>Create Account</h2>
+  <!-- Create account card -->
+  <div class="card hidden" id="createCard">
+    <h2>Create Account</h2>
 
-  <select id="type">
-    <option value="user">User</option>
-    <option value="admin">Admin</option>
-  </select>
+    <select id="type">
+      <option value="user">User</option>
+      <option value="admin">Admin</option>
+    </select>
 
-  <input type="text" id="username" placeholder="Username / ESP ID">
-  <input type="password" id="password" placeholder="Password">
+    <input type="text" id="username" placeholder="Username / ESP ID">
+    <input type="password" id="password" placeholder="Password">
 
-  <button onclick="createAccount()">Create</button>
-  <div class="error" id="createError"></div>
-</div>
+    <button onclick="createAccount()">Create</button>
+    <div class="error" id="createError"></div>
+    <div class="success" id="createSuccess"></div>
+  </div>
 
-<script>
-  let adminPasswordCache = ""
+  <script>
+    let adminPasswordCache = "";
 
-  async function authenticate() {
-    const password = document.getElementById("adminPassword").value
-    const error = document.getElementById("authError")
+    // Authenticate the admin
+    async function authenticate() {
+      const password = document.getElementById("adminPassword").value.trim();
+      const error = document.getElementById("authError");
+      error.textContent = "";
+      document.getElementById("createSuccess").textContent = "";
 
-    error.textContent = ""
+      if (!password) {
+        error.textContent = "Please enter the admin password.";
+        return;
+      }
 
-    const res = await fetch("/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: "ADMIN",
-        password: password,
-        role: "user"
-      })
-    })
+      try {
+        const res = await fetch("/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: "ADMIN",
+            password: password,
+            role: "user"
+          })
+        });
 
-    if (!res.ok) {
-      error.textContent = "Invalid admin password"
-      return
+        if (!res.ok) {
+          error.textContent = "Invalid admin password";
+          return;
+        }
+
+        adminPasswordCache = password;
+        document.getElementById("authCard").classList.add("hidden");
+        document.getElementById("createCard").classList.remove("hidden");
+
+      } catch (err) {
+        console.error(err);
+        error.textContent = "Server error. Try again.";
+      }
     }
 
-    adminPasswordCache = password
-    document.getElementById("authCard").classList.add("hidden")
-    document.getElementById("createCard").classList.remove("hidden")
-  }
+    // Create a new account
+    async function createAccount() {
+      const type = document.getElementById("type").value;
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const error = document.getElementById("createError");
+      const success = document.getElementById("createSuccess");
 
-  async function createAccount() {
-    const type = document.getElementById("type").value
-    const username = document.getElementById("username").value
-    const password = document.getElementById("password").value
-    const error = document.getElementById("createError")
+      error.textContent = "";
+      success.textContent = "";
 
-    error.textContent = ""
+      if (!username || !password) {
+        error.textContent = "Please fill in all fields.";
+        return;
+      }
 
-    const res = await fetch("/special-access/create-account", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        adminPassword: adminPasswordCache,
-        type,
-        username,
-        password
-      })
-    })
+      try {
+        const res = await fetch("/special-access/create-account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            adminPassword: adminPasswordCache,
+            type,
+            username,
+            password
+          })
+        });
 
-    const data = await res.json()
+        const data = await res.json();
 
-    if (!res.ok) {
-      error.textContent = data.error || "Failed"
-      return
+        if (!res.ok) {
+          error.textContent = data.error || "Failed to create account.";
+          return;
+        }
+
+        success.textContent = data.message || "Account created successfully!";
+        document.getElementById("username").value = "";
+        document.getElementById("password").value = "";
+
+      } catch (err) {
+        console.error(err);
+        error.textContent = "Server error. Try again.";
+      }
     }
-
-    alert(data.message)
-    document.getElementById("username").value = ""
-    document.getElementById("password").value = ""
-  }
-</script>
+  </script>
 
 </body>
+
 </html>
