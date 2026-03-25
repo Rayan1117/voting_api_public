@@ -36,38 +36,44 @@ exports.verifyRole = function (requiredRole) {
     }
 }
 
-exports.verifySocketRole = function (requiredRole) {
+exports.verifySocketRole = function (requiredRole = []) {
   return function (socket, next) {
 
     const authHeader =
-      socket.handshake.auth?.token || 
-      socket.handshake.headers["authorization"] || 
-      socket.handshake.query?.token || socket.handshake.query?.auth; 
+      socket.handshake.auth?.token ||
+      socket.handshake.headers["authorization"] ||
+      socket.handshake.query?.token;
 
-    console.log("Auth Header or Query Token:", authHeader);
+    console.log("Auth Header:", authHeader);
 
     if (!authHeader) return next(new Error("NO_TOKEN_FOUND"));
 
-    const jwt = authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;
-    
-    let payload;
+    const jwt = authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : authHeader;
+
+    console.log("JWT:", jwt);
+
     try {
-      
-      payload = verifyToken(jwt);
+      const payload = verifyToken(jwt);
+
+      console.log("Payload:", payload);
+
+      if (!Array.isArray(requiredRole) || requiredRole.length === 0) {
+        return next(); // allow all
+      }
+
+      if (requiredRole.includes(payload.role)) {
+        socket.username = payload.username;
+        socket.role = payload.role;
+        return next();
+      }
+
+      return next(new Error("INVALID_ROLE"));
 
     } catch (err) {
-      console.log(err.message);
-      
+      console.log("JWT ERROR:", err.message);
       return next(new Error("INVALID_TOKEN"));
     }
-
-    console.log("Payload role:", payload.role);
-
-    if (requiredRole.includes(payload.role)) {
-      socket.username = payload.username
-      return next();
-    }
-
-    return next(new Error("INVALID_TOKEN"));
   };
 };
