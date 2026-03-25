@@ -9,7 +9,7 @@ class Database {
         database: 'CSE8882',
         options: {
             trustServerCertificate: true,
-            encrypt: true
+            encrypt: false
         },
         pool: {
             max: 10,
